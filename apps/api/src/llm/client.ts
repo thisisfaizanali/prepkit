@@ -126,11 +126,12 @@ export class LLMClient {
     if (providers.length === 0) {
       throw new LLMError("LLM_UNAVAILABLE", "No LLM provider configured: set GROQ_API_KEY (and optionally GEMINI_API_KEY) in .env");
     }
-    let last: Failure | undefined;
+    const seen = new Set<LLMErrorCode>(); // every failure kind hit on any attempt, any provider
+    const reasons: string[] = [];
     for (const [i, provider] of providers.entries()) {
-      const outcome = await this.tryProvider(provider, req);
+      const outcome = await this.tryProvider(provider, req, seen);
       if ("text" in outcome) return outcome;
-      last = outcome;
+      reasons.push(`${provider.name}: ${outcome.reason}`);
       const next = providers[i + 1];
       if (next) this.emit({ type: "fallback", from: provider.name, to: next.name, reason: outcome.reason, label: req.label });
     }
@@ -140,10 +141,16 @@ export class LLMClient {
       LLM_BAD_REQUEST: "The LLM request was rejected",
       LLM_INVALID_OUTPUT: "The LLM returned invalid output",
     };
-    throw new LLMError(last!.code, `${messages[last!.code]} (${req.label}): ${last!.reason}`);
+    // Most meaningful first: rate limits (wait and retry later) > outages > our request being rejected.
+    const code = (["LLM_RATE_LIMITED", "LLM_UNAVAILABLE"] as const).find((c) => seen.has(c)) ?? "LLM_BAD_REQUEST";
+    throw new LLMError(code, `${messages[code]} (${req.label}): ${reasons.join("; ")}`);
   }
 
-  private async tryProvider(provider: Provider, req: CompleteRequest): Promise<CompleteResult | Failure> {
+  private async tryProvider(
+    provider: Provider,
+    req: CompleteRequest,
+    seen: Set<LLMErrorCode>,
+  ): Promise<CompleteResult | Failure> {
     const maxTokens = req.maxTokens ?? DEFAULT_MAX_TOKENS;
     const estimate = Math.ceil((req.system.length + req.user.length) / 4) + maxTokens;
     const body = JSON.stringify({
@@ -184,13 +191,18 @@ export class LLMClient {
         }
         const detail = (await res.text().catch(() => "")).slice(0, 300);
         const reason = `HTTP ${res.status}${detail ? `: ${detail}` : ""}`;
-        if (!RETRYABLE.has(res.status)) return { code: "LLM_BAD_REQUEST", reason };
+        if (!RETRYABLE.has(res.status)) {
+          seen.add("LLM_BAD_REQUEST");
+          return { code: "LLM_BAD_REQUEST", reason };
+        }
         rateLimited = res.status === 429;
         failure = { code: rateLimited ? "LLM_RATE_LIMITED" : "LLM_UNAVAILABLE", reason };
+        seen.add(failure.code);
         waitMs = headerWaitMs(res.headers) ?? this.backoff(attempt);
       } catch (err) {
         // Network error, timeout, or malformed success body.
         failure = { code: "LLM_UNAVAILABLE", reason: err instanceof Error ? `${err.name}: ${err.message}` : String(err) };
+        seen.add(failure.code);
         waitMs = this.backoff(attempt);
       }
 

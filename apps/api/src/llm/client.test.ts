@@ -118,6 +118,21 @@ describe("LLMClient", () => {
     expect(e.code).toBe(code);
   });
 
+  it("groq 429-exhausted + gemini 400 → LLM_RATE_LIMITED, message names both", async () => {
+    const t = setup({
+      "https://groq.test": Array.from({ length: 5 }, () => err(429, { "retry-after": "1" })),
+      "https://gemini.test": [err(400)],
+    });
+    const e = await t.client.complete(req).catch((x) => x);
+    expect(e).toMatchObject({ code: "LLM_RATE_LIMITED" });
+    expect(e.message).toMatch(/groq: HTTP 429.*gemini: HTTP 400/);
+  });
+
+  it("an earlier 429 on a provider counts even if its last attempt was a 503", async () => {
+    const t = setup({ "https://groq.test": [err(429, { "retry-after": "1" }), ...Array.from({ length: 4 }, () => err(503))] }, [groq]);
+    expect(await t.client.complete(req).catch((x) => x)).toMatchObject({ code: "LLM_RATE_LIMITED" });
+  });
+
   it("no providers → clear LLM_UNAVAILABLE error at call time", async () => {
     const e = await setup({}, []).client.complete(req).catch((x) => x);
     expect(e).toMatchObject({ code: "LLM_UNAVAILABLE" });
