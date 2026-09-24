@@ -16,10 +16,12 @@ const EnvSchema = z.object({
   GROQ_API_KEY: optionalString,
   GROQ_MODEL: z.string().default("openai/gpt-oss-120b"),
   GROQ_TPM: positiveInt(6000),
+  GROQ_RPM: positiveInt(30),
   GROQ_REASONING_EFFORT: reasoningEffort("low"),
   GEMINI_API_KEY: optionalString,
   GEMINI_MODEL: z.string().default("gemini-3.6-flash"),
   GEMINI_TPM: positiveInt(200000),
+  GEMINI_RPM: positiveInt(10),
   GEMINI_REASONING_EFFORT: reasoningEffort("low"),
   LLM_TIMEOUT_MS: positiveInt(60000),
   // The batch grader serves fixture sites from localhost, so private URLs are allowed outside production.

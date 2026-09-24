@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { LLMClient, LLMError, parseDuration, type LLMEvent, type Provider } from "./client.ts";
 
-const groq: Provider = { name: "groq", baseUrl: "https://groq.test", apiKey: "k1", model: "m1", tpm: 100_000 };
-const gemini: Provider = { name: "gemini", baseUrl: "https://gemini.test", apiKey: "k2", model: "m2", tpm: 100_000 };
+const groq: Provider = { name: "groq", baseUrl: "https://groq.test", apiKey: "k1", model: "m1", tpm: 100_000, rpm: 1000 };
+const gemini: Provider = { name: "gemini", baseUrl: "https://gemini.test", apiKey: "k2", model: "m2", tpm: 100_000, rpm: 1000 };
 
 const ok = (text = "hi", total_tokens = 10) =>
   new Response(JSON.stringify({ choices: [{ message: { content: text } }], usage: { total_tokens } }), { status: 200 });
@@ -137,6 +137,41 @@ describe("LLMClient", () => {
     const e = await setup({}, []).client.complete(req).catch((x) => x);
     expect(e).toMatchObject({ code: "LLM_UNAVAILABLE" });
     expect(e.message).toContain("GROQ_API_KEY");
+  });
+
+  it("RPM pacing: the 3rd request in a minute waits when rpm is 2", async () => {
+    const t = setup({ "https://groq.test": [ok(), ok(), ok()] }, [{ ...groq, rpm: 2 }]);
+    await t.client.complete(req);
+    t.advance(10_000);
+    await t.client.complete(req);
+    await t.client.complete(req);
+    expect(t.sleeps).toEqual([50_000]); // until the first request leaves the 60s window
+  });
+
+  it("spillover: primary window full → call goes to secondary with no sleep", async () => {
+    const t = setup({ "https://groq.test": [ok("a", 900)], "https://gemini.test": [ok("b")] }, [
+      { ...groq, tpm: 1000 },
+      gemini,
+    ]);
+    await t.client.complete({ ...req, maxTokens: 100 });
+    const r = await t.client.complete({ ...req, maxTokens: 500 });
+    expect(r.provider).toBe("gemini");
+    expect(t.sleeps).toEqual([]);
+    expect(t.events).toContainEqual(expect.objectContaining({ type: "spillover", from: "groq", to: "gemini" }));
+  });
+
+  it("spillover: both windows full → the provider with the smallest wait is used", async () => {
+    const t = setup(
+      { "https://groq.test": [ok("a", 900), ok("c")], "https://gemini.test": [ok("b", 900)] },
+      [{ ...groq, tpm: 1000 }, { ...gemini, tpm: 1000 }],
+    );
+    await t.client.complete({ ...req, maxTokens: 100 }); // groq at t=0
+    t.advance(20_000);
+    await t.client.complete({ ...req, maxTokens: 100 }); // groq would wait 40s > 5s → spills to gemini at t=20s
+    t.advance(10_000); // t=30s: groq frees at 60s (wait 30s), gemini at 80s (wait 50s)
+    const r = await t.client.complete({ ...req, maxTokens: 500 });
+    expect(r.provider).toBe("groq");
+    expect(t.sleeps).toEqual([30_000]);
   });
 
   it("pacer: tpm 1000, 900 tokens used → a 200-token call waits for the window to free", async () => {

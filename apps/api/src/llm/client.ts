@@ -6,6 +6,8 @@ export type Provider = {
   apiKey: string;
   model: string;
   tpm: number;
+  /** Requests per minute budget. */
+  rpm: number;
   /** Sent as `reasoning_effort` when set. */
   reasoningEffort?: string;
 };
@@ -25,7 +27,8 @@ export class LLMError extends Error {
 export type LLMEvent =
   | { type: "rate_limited"; provider: string; waitMs: number; label: string }
   | { type: "retry"; provider: string; attempt: number; reason: string; waitMs: number; label: string }
-  | { type: "fallback"; from: string; to: string; reason: string; label: string };
+  | { type: "fallback"; from: string; to: string; reason: string; label: string }
+  | { type: "spillover"; from: string; to: string; waitMs: number; label: string };
 
 export type CompleteRequest = {
   system: string;
@@ -51,6 +54,7 @@ export type ClientDeps = {
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 60_000;
 const MAX_WAIT_MS = 60_000; // longer than this = quota exhausted, move to next provider
+const SPILLOVER_WAIT_MS = 5_000; // primary would pace-wait longer than this → use the next provider instead
 const BACKOFF_CAP_MS = 30_000;
 const DEFAULT_MAX_TOKENS = 1024;
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
@@ -87,6 +91,7 @@ export function providersFromConfig(config: Config, only?: string): Provider[] {
       apiKey: config.GROQ_API_KEY,
       model: config.GROQ_MODEL,
       tpm: config.GROQ_TPM,
+      rpm: config.GROQ_RPM,
       reasoningEffort: effort(config.GROQ_REASONING_EFFORT),
     });
   }
@@ -97,6 +102,7 @@ export function providersFromConfig(config: Config, only?: string): Provider[] {
       apiKey: config.GEMINI_API_KEY,
       model: config.GEMINI_MODEL,
       tpm: config.GEMINI_TPM,
+      rpm: config.GEMINI_RPM,
       reasoningEffort: effort(config.GEMINI_REASONING_EFFORT),
     });
   }
@@ -105,12 +111,16 @@ export function providersFromConfig(config: Config, only?: string): Provider[] {
 
 type Failure = { code: LLMErrorCode; reason: string };
 
+const estimateTokens = (req: CompleteRequest) =>
+  Math.ceil((req.system.length + req.user.length) / 4) + (req.maxTokens ?? DEFAULT_MAX_TOKENS);
+
 export class LLMClient {
   private readonly fetch: typeof fetch;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => number;
   private readonly random: () => number;
   private readonly timeoutMs: number;
+  /** Per provider: requests started in the last 60s and the tokens each used (estimate until the real count is known). */
   private readonly windows = new Map<string, { at: number; tokens: number }[]>();
 
   constructor(private readonly deps: ClientDeps) {
@@ -126,13 +136,14 @@ export class LLMClient {
     if (providers.length === 0) {
       throw new LLMError("LLM_UNAVAILABLE", "No LLM provider configured: set GROQ_API_KEY (and optionally GEMINI_API_KEY) in .env");
     }
+    const ordered = this.spillover(providers, req);
     const seen = new Set<LLMErrorCode>(); // every failure kind hit on any attempt, any provider
     const reasons: string[] = [];
-    for (const [i, provider] of providers.entries()) {
+    for (const [i, provider] of ordered.entries()) {
       const outcome = await this.tryProvider(provider, req, seen);
       if ("text" in outcome) return outcome;
       reasons.push(`${provider.name}: ${outcome.reason}`);
-      const next = providers[i + 1];
+      const next = ordered[i + 1];
       if (next) this.emit({ type: "fallback", from: provider.name, to: next.name, reason: outcome.reason, label: req.label });
     }
     const messages: Record<LLMErrorCode, string> = {
@@ -151,8 +162,8 @@ export class LLMClient {
     req: CompleteRequest,
     seen: Set<LLMErrorCode>,
   ): Promise<CompleteResult | Failure> {
+    const estimate = estimateTokens(req);
     const maxTokens = req.maxTokens ?? DEFAULT_MAX_TOKENS;
-    const estimate = Math.ceil((req.system.length + req.user.length) / 4) + maxTokens;
     const body = JSON.stringify({
       model: provider.model,
       messages: [
@@ -168,6 +179,8 @@ export class LLMClient {
     let failure: Failure = { code: "LLM_UNAVAILABLE", reason: "no attempt made" };
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       await this.pace(provider, estimate, req.label);
+      const slot = { at: this.now(), tokens: estimate };
+      this.windowFor(provider).push(slot);
 
       let waitMs: number;
       let rateLimited = false;
@@ -186,9 +199,10 @@ export class LLMClient {
           const text = data.choices?.[0]?.message?.content;
           if (typeof text !== "string") throw new Error("response had no message content");
           const total = data.usage?.total_tokens ?? estimate;
-          this.record(provider, total);
+          slot.tokens = total;
           return { text, provider: provider.name, model: provider.model, usage: { total_tokens: total } };
         }
+        slot.tokens = 0; // a rejected request still counts against RPM, but used no tokens
         const detail = (await res.text().catch(() => "")).slice(0, 300);
         const reason = `HTTP ${res.status}${detail ? `: ${detail}` : ""}`;
         if (!RETRYABLE.has(res.status)) {
@@ -201,6 +215,7 @@ export class LLMClient {
         waitMs = headerWaitMs(res.headers) ?? this.backoff(attempt);
       } catch (err) {
         // Network error, timeout, or malformed success body.
+        slot.tokens = 0;
         failure = { code: "LLM_UNAVAILABLE", reason: err instanceof Error ? `${err.name}: ${err.message}` : String(err) };
         seen.add(failure.code);
         waitMs = this.backoff(attempt);
@@ -222,22 +237,46 @@ export class LLMClient {
     return Math.min(BACKOFF_CAP_MS, 1000 * 2 ** (attempt - 1) + Math.floor(this.random() * 1000));
   }
 
-  /** Sleep until the provider's 60s token window has room for `estimate`. */
-  private async pace(provider: Provider, estimate: number, label: string): Promise<void> {
+  /**
+   * Put the provider that can serve now first: the first (in configured order) whose pacing wait is ≤ 5s,
+   * else the one with the smallest wait. Error fallback then continues through the rest in order.
+   */
+  private spillover(providers: Provider[], req: CompleteRequest): Provider[] {
+    const estimate = estimateTokens(req);
+    const waits = providers.map((p) => this.waitMs(p, estimate));
+    let chosen = waits.findIndex((w) => w <= SPILLOVER_WAIT_MS);
+    if (chosen < 0) chosen = waits.indexOf(Math.min(...waits));
+    if (chosen === 0) return providers;
+    this.emit({ type: "spillover", from: providers[0].name, to: providers[chosen].name, waitMs: waits[0], label: req.label });
+    return [providers[chosen], ...providers.filter((_, i) => i !== chosen)];
+  }
+
+  /** How long until the provider's 60s window has room for one more request of `estimate` tokens. */
+  private waitMs(provider: Provider, estimate: number): number {
+    const now = this.now();
     const window = this.windowFor(provider);
-    for (;;) {
-      const now = this.now();
-      while (window.length && window[0].at <= now - WINDOW_MS) window.shift();
-      const used = window.reduce((sum, e) => sum + e.tokens, 0);
-      if (window.length === 0 || used + estimate <= provider.tpm) return;
-      const waitMs = window[0].at + WINDOW_MS - now;
+    while (window.length && window[0].at <= now - WINDOW_MS) window.shift();
+    const expiry = (i: number) => window[i].at + WINDOW_MS - now;
+
+    let rpmWait = 0;
+    if (window.length >= provider.rpm) rpmWait = expiry(window.length - provider.rpm);
+
+    let tokenWait = 0;
+    let used = window.reduce((sum, e) => sum + e.tokens, 0);
+    // Oldest entries age out first; wait until enough have gone (an estimate > tpm just waits for an empty window).
+    for (let i = 0; i < window.length && used + estimate > provider.tpm; i++) {
+      used -= window[i].tokens;
+      tokenWait = expiry(i);
+    }
+    return Math.max(rpmWait, tokenWait, 0);
+  }
+
+  /** Sleep until the provider's window has room (tokens and requests). */
+  private async pace(provider: Provider, estimate: number, label: string): Promise<void> {
+    for (let waitMs = this.waitMs(provider, estimate); waitMs > 0; waitMs = this.waitMs(provider, estimate)) {
       this.emit({ type: "rate_limited", provider: provider.name, waitMs, label });
       await this.sleep(waitMs);
     }
-  }
-
-  private record(provider: Provider, tokens: number): void {
-    this.windowFor(provider).push({ at: this.now(), tokens });
   }
 
   private windowFor(provider: Provider) {
