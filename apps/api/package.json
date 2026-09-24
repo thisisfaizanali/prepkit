@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "llm:smoke": "tsx src/llm/smoke.ts"
   },
   "dependencies": {
     "@prepkit/shared": "*",
