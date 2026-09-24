@@ -23,6 +23,24 @@ describe("scoreLink", () => {
     expect(s("https://a.test/pricing").kind).toBe("other");
   });
 
+  it("a link matching several categories no longer beats a genuine 'How we hire' link", () => {
+    const multi = scoreLink({ url: "https://a.test/teams/engineering-culture", text: "Engineering team culture" });
+    const hire = s("https://a.test/how-we-hire", "How we hire");
+    expect(hire.score).toBeGreaterThan(multi.score);
+    expect(multi.score).toBe(12); // best single category (about: anchor 8 + path 4), not about + engineering (21)
+  });
+
+  it("strong hiring path segments; 'people' and 'interview' in a path are weak", () => {
+    expect(s("https://a.test/handbook/people/hiring-process").kind).toBe("hiring");
+    expect(s("https://a.test/handbook/people/share-options").kind).toBe("about");
+    expect(s("https://a.test/blog/interview-with-our-ceo").score).toBeLessThan(s("https://a.test/interviewing").score);
+  });
+
+  it("reports the best non-hiring category as fallbackKind", () => {
+    expect(s("https://a.test/careers/how-we-hire", "How we hire")).toMatchObject({ kind: "hiring", fallbackKind: "careers" });
+    expect(s("https://a.test/x", "Interview")).toMatchObject({ kind: "hiring", fallbackKind: "other" });
+  });
+
   it("anchor text weighs more than path", () => {
     expect(s("https://a.test/x", "Careers").score).toBeGreaterThan(s("https://a.test/careers", "Go").score);
   });

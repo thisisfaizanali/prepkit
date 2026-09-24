@@ -30,7 +30,17 @@ describe("crawlCompany (fixture site)", () => {
   });
 
   it("discovers the sitemap-only handbook page", () => {
-    expect(page("/acme/handbook/hiring/")).toMatchObject({ kind: "hiring" });
+    expect(page("/acme/handbook/hiring/")).toBeDefined();
+    expect(result.sitemaps).toEqual([{ url: `${site.base}/acme/sitemap.xml`, source: "fallback", urls: 2 }]);
+  });
+
+  it("a hiring-looking URL without hiring content is not classified hiring", () => {
+    // /acme/blog/interview-with-our-ceo/ looks like hiring by URL; its content is a CEO Q&A.
+    expect(page("/acme/blog/interview-with-our-ceo/")).toBeDefined();
+    expect(page("/acme/blog/interview-with-our-ceo/")!.kind).not.toBe("hiring");
+    // The handbook page mentions only one hiring phrase → falls back from hiring to about.
+    expect(page("/acme/handbook/hiring/")!.kind).toBe("about");
+    expect(result.pages.filter((p) => p.kind === "hiring").map((p) => p.url)).toEqual([`${site.base}/acme/company/life/`]);
   });
 
   it("never fetches out-of-scope /globex/", () => {

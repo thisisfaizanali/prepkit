@@ -21,6 +21,11 @@ for (const p of crawl.pages) {
   console.log(`  [${p.kind}] ${p.url}  link=${p.linkScore} content=${p.contentScore}`);
   console.log(`      ${p.text.slice(0, 120).replace(/\s+/g, " ")}`);
 }
+console.log(`sitemaps (${crawl.sitemaps.length}):`);
+for (const s of crawl.sitemaps) {
+  const children = s.children !== undefined ? ` index→${s.children} children` : "";
+  console.log(`  [${s.source}] ${s.url}  urls=${s.urls}${children}${s.error ? `  (${s.error})` : ""}`);
+}
 console.log(`skipped (${crawl.skipped.length}):`);
 for (const s of crawl.skipped) console.log(`  ${s.reason}  ${s.url}`);
 console.log(`hiringPageFound: ${crawl.hiringPageFound}  aboutPageFound: ${crawl.aboutPageFound}`);

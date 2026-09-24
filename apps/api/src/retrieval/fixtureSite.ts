@@ -18,6 +18,7 @@ const pages: Record<string, string> = {
       <a href="team/">Meet the team</a>
       <a href="internal/">Internal team wiki</a>
       <a href="docs/brochure.pdf">About brochure</a>
+      <a href="blog/interview-with-our-ceo/">Interview with our CEO</a>
     </main>`,
   ),
   "/acme/about/": page("About Acme", "<main><p>Acme was founded in 1949. Our mission is anvils for everyone.</p></main>"),
@@ -25,6 +26,10 @@ const pages: Record<string, string> = {
     "Life at Acme",
     `<main><p>Our interview process has four stages. After a recruiter screen you get a take-home exercise,
       then a technical interview and a system design interview during the onsite.</p></main>`,
+  ),
+  "/acme/blog/interview-with-our-ceo/": page(
+    "Interview with our CEO",
+    "<main><p>Our CEO talks about anvils, the company story and where Acme is heading next.</p></main>",
   ),
   "/acme/legal/privacy": page("Privacy", "<main><p>We respect your privacy.</p></main>"),
   "/acme/join/": page("Careers at Acme", "<main><p>Open roles: Backend Engineer.</p></main>"),

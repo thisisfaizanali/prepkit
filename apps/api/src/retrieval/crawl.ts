@@ -25,12 +25,16 @@ export type CrawlResult = {
   pages: CrawlPage[];
   /** Every source we tried and couldn't use, with the error code. */
   skipped: { url: string; reason: string }[];
+  /** Sitemap discovery log: each sitemap tried, where it came from, and how many <loc> URLs it gave (or why none). */
+  sitemaps: SitemapReport[];
+  /** True only for pages whose content confirms a hiring process. */
   hiringPageFound: boolean;
   aboutPageFound: boolean;
 };
+export type SitemapReport = { url: string; source: "robots" | "fallback" | "index"; urls: number; children?: number; error?: string };
 export type CrawlOptions = FetchOptions & { maxPages?: number; maxDepth?: number };
 
-type Candidate = { url: string; score: number; kind: LinkKind; depth: number };
+type Candidate = { url: string; score: number; kind: LinkKind; fallbackKind: LinkKind; depth: number };
 
 const MAX_SITEMAP_URLS = 500;
 const MAX_SITEMAP_FILES = 5;
@@ -41,9 +45,10 @@ const directoryOf = (pathname: string) => pathname.slice(0, pathname.lastIndexOf
 const baseDomain = (host: string) => host.split(".").slice(-2).join(".");
 
 export async function crawlCompany(startInput: string, opts: CrawlOptions = {}): Promise<CrawlResult> {
-  const maxPages = opts.maxPages ?? 8;
+  const maxPages = opts.maxPages ?? 10;
   const maxDepth = opts.maxDepth ?? 2;
   const skipped: CrawlResult["skipped"] = [];
+  const sitemaps: SitemapReport[] = [];
   const robots = new Robots(opts);
   const guard = opts.guard ?? ((u: URL) => assertFetchable(u, { allowPrivate: opts.allowPrivate ?? config.ALLOW_PRIVATE_URLS }));
   const reportedRobots = new Set<string>();
@@ -75,7 +80,7 @@ export async function crawlCompany(startInput: string, opts: CrawlOptions = {}):
     home = await fetchPage(start, opts);
   } catch (e) {
     const err = e instanceof RetrievalError ? e : new RetrievalError("NETWORK", String(e), startUrl);
-    return { startUrl, reachable: false, error: { code: err.code, message: err.message }, pages: [], skipped, hiringPageFound: false, aboutPageFound: false };
+    return { startUrl, reachable: false, error: { code: err.code, message: err.message }, pages: [], skipped, sitemaps, hiringPageFound: false, aboutPageFound: false };
   }
 
   const homeUrl = new URL(home.url);
@@ -103,14 +108,16 @@ export async function crawlCompany(startInput: string, opts: CrawlOptions = {}):
       if (ranked.score <= 0) continue;
       const score = ranked.score + (HIRINGISH.includes(foundOn) ? LINK_SIGNALS.foundOnHiringPageBonus : 0);
       const existing = queue.get(url.href);
-      if (!existing || score > existing.score) queue.set(url.href, { url: url.href, score, kind: ranked.kind, depth });
+      if (!existing || score > existing.score) queue.set(url.href, { url: url.href, score, kind: ranked.kind, fallbackKind: ranked.fallbackKind, depth });
     }
   };
 
-  const addPage = (url: string, html: string, kind: LinkKind | "home", linkScore: number) => {
+  // "hiring" only when the content confirms it; a hiring-looking link falls back to its next-best category.
+  const addPage = (url: string, html: string, link: Pick<Candidate, "kind" | "fallbackKind"> | "home", linkScore: number) => {
     const content = extractContent(html, url);
     const contentScore = scorePageContent(content.text);
-    const finalKind: PageKind = kind !== "home" && contentScore >= HIRING_CONTENT_THRESHOLD ? "hiring" : kind;
+    const finalKind: PageKind =
+      link === "home" ? "home" : contentScore >= HIRING_CONTENT_THRESHOLD ? "hiring" : link.kind === "hiring" ? link.fallbackKind : link.kind;
     pages.push({ url, title: content.title, description: content.description, text: content.text, kind: finalKind, linkScore, contentScore });
     return { content, kind: finalKind };
   };
@@ -125,6 +132,7 @@ export async function crawlCompany(startInput: string, opts: CrawlOptions = {}):
     opts,
     allowed,
     skipped,
+    sitemaps,
   );
   enqueue(sitemapLinks.map((url) => ({ url, text: "" })), 1, "home");
 
@@ -166,7 +174,7 @@ export async function crawlCompany(startInput: string, opts: CrawlOptions = {}):
       }
       seen.add(page.url);
     }
-    const added = addPage(page.url, page.body, next.kind, next.score);
+    const added = addPage(page.url, page.body, next, next.score);
     enqueue(added.content.links, next.depth + 1, added.kind);
   }
 
@@ -175,6 +183,7 @@ export async function crawlCompany(startInput: string, opts: CrawlOptions = {}):
     reachable: true,
     pages,
     skipped,
+    sitemaps,
     hiringPageFound: pages.some((p) => p.kind === "hiring"),
     aboutPageFound: pages.some((p) => p.kind === "about"),
   };
@@ -186,24 +195,36 @@ async function readSitemaps(
   opts: FetchOptions,
   allowed: (url: string) => Promise<boolean>,
   skipped: CrawlResult["skipped"],
+  reports: SitemapReport[],
 ): Promise<string[]> {
   const urls: string[] = [];
-  const read = async (sitemapUrl: string, allowIndex: boolean) => {
-    if (urls.length >= MAX_SITEMAP_URLS) return;
-    if (!(await allowed(sitemapUrl))) return void skipped.push({ url: sitemapUrl, reason: "ROBOTS_DISALLOWED" });
+  const read = async (sitemapUrl: string, source: SitemapReport["source"]) => {
+    const report: SitemapReport = { url: sitemapUrl, source, urls: 0 };
+    reports.push(report);
+    if (urls.length >= MAX_SITEMAP_URLS) return void (report.error = `URL cap of ${MAX_SITEMAP_URLS} already reached`);
+    if (!(await allowed(sitemapUrl))) {
+      report.error = "ROBOTS_DISALLOWED";
+      return void skipped.push({ url: sitemapUrl, reason: "ROBOTS_DISALLOWED" });
+    }
     let body: string;
     try {
-      body = (await fetchPage(sitemapUrl, { ...opts, allowXml: true })).body;
+      const page = await fetchPage(sitemapUrl, { ...opts, allowXml: true });
+      body = page.body;
     } catch (e) {
-      return void skipped.push({ url: sitemapUrl, reason: e instanceof RetrievalError ? e.code : "NETWORK" });
+      const code = e instanceof RetrievalError ? e.code : "NETWORK";
+      report.error = code;
+      return void skipped.push({ url: sitemapUrl, reason: code });
     }
     const $ = cheerio.load(body, { xml: true });
     const locs = (sel: string) => $(sel).map((_, el) => $(el).text().trim()).get().filter(Boolean);
     if ($("sitemapindex").length) {
-      if (!allowIndex) return; // one level of index only
-      for (const child of locs("sitemap > loc").slice(0, MAX_SITEMAP_FILES)) await read(child, false);
+      const children = locs("sitemap > loc");
+      report.children = children.length;
+      if (source === "index") return void (report.error = "nested sitemap index ignored (one level only)");
+      for (const child of children.slice(0, MAX_SITEMAP_FILES)) await read(child, "index");
       return;
     }
+    const before = urls.length;
     for (const loc of locs("url > loc")) {
       if (urls.length >= MAX_SITEMAP_URLS) break;
       try {
@@ -212,7 +233,9 @@ async function readSitemaps(
         // ignore malformed <loc>
       }
     }
+    report.urls = urls.length - before;
   };
-  for (const s of listed.length ? listed : [fallback]) await read(s, true);
+  if (listed.length) for (const s of listed) await read(s, "robots");
+  else await read(fallback, "fallback");
   return urls;
 }

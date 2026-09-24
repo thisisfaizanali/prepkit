@@ -18,6 +18,12 @@ export const LINK_SIGNALS = {
     about: ["about", "about us", "company", "who we are", "mission", "story", "values", "culture", "team", "handbook"],
     engineering: ["engineering", "tech blog", "how we work", "stack"],
   } satisfies Record<Category, string[]>,
+  /** Hiring path segments differ from anchor text: blogs put "interview" in URLs for CEO interviews. */
+  hiringPath: {
+    strong: ["hiring", "hiring process", "how we hire", "interview process", "interviewing"],
+    weak: ["people", "interview", "interviews"],
+    weakWeight: 3,
+  },
   penaltyWords: [
     "login", "log in", "sign in", "signin", "signup", "sign up", "register", "privacy", "terms", "legal", "cookie",
     "cookies", "security txt", "status", "pricing", "docs", "api reference", "changelog", "rss",
@@ -56,24 +62,38 @@ const has = (hay: string, phrase: string) => ` ${hay} `.includes(` ${normalize(p
 
 export type LinkContext = { startLocalised?: boolean };
 
-export function scoreLink(link: { url: string; text: string }, context: LinkContext = {}): { score: number; kind: LinkKind } {
+export type LinkScore = {
+  score: number;
+  kind: LinkKind;
+  /** Best non-hiring category, used when a page's content doesn't confirm it's about hiring. */
+  fallbackKind: LinkKind;
+};
+
+export function scoreLink(link: { url: string; text: string }, context: LinkContext = {}): LinkScore {
   const url = new URL(link.url);
   const text = normalize(link.text);
   const segments = url.pathname.split("/").filter(Boolean).map((s) => normalize(decodeURIComponent(s)));
   const path = segments.join(" ");
   const S = LINK_SIGNALS;
 
-  let score = 0;
-  let kind: LinkKind = "other";
-  let best = 0;
-  for (const category of Object.keys(S.keywords) as Category[]) {
-    const phrases = S.keywords[category];
+  // Score each category separately; the link is worth its best category (no summing across categories).
+  const categoryScore = (category: Category) => {
     const weight = S.weights[category];
-    const contribution =
-      (phrases.some((p) => has(text, p)) ? weight * S.anchorMultiplier : 0) + (phrases.some((p) => has(path, p)) ? weight : 0);
-    score += contribution;
-    if (contribution > best) [best, kind] = [contribution, category];
+    const anchor = S.keywords[category].some((p) => has(text, p)) ? weight * S.anchorMultiplier : 0;
+    if (category !== "hiring") return anchor + (S.keywords[category].some((p) => has(path, p)) ? weight : 0);
+    const { strong, weak, weakWeight } = S.hiringPath;
+    return anchor + (strong.some((p) => has(path, p)) ? weight : weak.some((p) => has(path, p)) ? weakWeight : 0);
+  };
+  let kind: LinkKind = "other";
+  let fallbackKind: LinkKind = "other";
+  let best = 0;
+  let bestNonHiring = 0;
+  for (const category of Object.keys(S.keywords) as Category[]) {
+    const value = categoryScore(category);
+    if (value > best) [best, kind] = [value, category];
+    if (category !== "hiring" && value > bestNonHiring) [bestNonHiring, fallbackKind] = [value, category];
   }
+  let score = best;
 
   for (const word of S.penaltyWords) {
     if (has(text, word) || has(path, word)) score += S.penalties.word;
@@ -84,7 +104,7 @@ export function scoreLink(link: { url: string; text: string }, context: LinkCont
   if (!context.startLocalised && LOCALE_PREFIX.test(url.pathname)) score += S.penalties.localePrefix;
   if (segments.length > S.maxPathSegments) score += S.penalties.deepPath;
 
-  return { score, kind };
+  return { score, kind, fallbackKind };
 }
 
 /** Number of distinct hiring-process phrases in the page body. */
