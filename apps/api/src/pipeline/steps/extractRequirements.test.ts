@@ -67,6 +67,22 @@ describe("guardRequirements", () => {
     expect(r.map((x) => x.priority)).toEqual(["must", "nice"]);
   });
 
+  it("recognises unpunctuated sentence-case headings ('Nice to have' with no colon)", () => {
+    const jd = "Requirements\n- Strong Go skills\n- Kubernetes experience is preferred\n- Solid SQL\n\nNice to have\n- Experience with Kafka";
+    const r = guardRequirements(jd, [
+      req("Go", "Strong Go skills", "nice"),
+      req("Kubernetes", "Kubernetes experience is preferred", "must"),
+      req("SQL", "Solid SQL", "nice"),
+      req("Kafka", "Experience with Kafka", "must"),
+    ]).requirements;
+    expect(r.map((x) => [x.text, x.priority])).toEqual([
+      ["Go", "must"],
+      ["Kubernetes", "nice"],
+      ["SQL", "must"], // the "…is preferred" item above is not mistaken for a heading
+      ["Kafka", "nice"],
+    ]);
+  });
+
   it("an unbulleted Title Case item doesn't hide the real heading above it", () => {
     const jd = "Nice to have:\nExperience With Kubernetes\nExperience With Kafka";
     const [kafka] = guardRequirements(jd, [req("Kafka", "Experience With Kafka", "must")]).requirements;

@@ -95,7 +95,11 @@ function isHeading(line: string): boolean {
   const words = t.replace(/[^\p{L}\p{N}' ]/gu, "").split(/\s+/).filter(Boolean);
   const titleCase =
     words.length > 0 && words.length <= 6 && !/[.!?]$/.test(t) && words.every((w) => /^[\p{Lu}\p{N}]/u.test(w) || SMALL_WORDS.has(w));
-  return titleCase && (hasCue(t, NICE_CUES) || hasCue(t, MUST_CUES));
+  if (titleCase && (hasCue(t, NICE_CUES) || hasCue(t, MUST_CUES))) return true;
+  // Unpunctuated sentence-case heading that starts with a cue: "Nice to have", "Preferred qualifications".
+  // ("Kubernetes experience is preferred" doesn't start with its cue, so it stays an item.)
+  const norm = normalizeText(t);
+  return words.length <= 4 && !/[.!?]$/.test(t) && [...NICE_CUES, ...MUST_CUES].some((c) => norm === c || norm.startsWith(`${c} `));
 }
 
 /**
