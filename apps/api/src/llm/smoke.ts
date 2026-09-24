@@ -23,7 +23,7 @@ const result = await generateJson(client, {
   system: 'Reply with a JSON object of the form {"ok": boolean, "echo": string}.',
   user: 'Set ok to true and echo to "prepkit smoke test".',
   schema: z.object({ ok: z.boolean(), echo: z.string() }),
-  maxTokens: 1000, // headroom: thinking models (e.g. Gemini 3.x) spend part of this on reasoning
+  maxTokens: 300,
   label: "smoke",
 });
 

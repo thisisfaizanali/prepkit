@@ -57,6 +57,15 @@ describe("LLMClient", () => {
     expect(t.calls[0].body.response_format).toEqual({ type: "json_object" });
   });
 
+  it("sends reasoning_effort only when the provider sets it", async () => {
+    const t = setup({ "https://groq.test": [ok()], "https://gemini.test": [ok()] }, [{ ...groq, reasoningEffort: "low" }]);
+    await t.client.complete(req);
+    expect(t.calls[0].body.reasoning_effort).toBe("low");
+    const u = setup({ "https://groq.test": [ok()] }, [groq]);
+    await u.client.complete(req);
+    expect(u.calls[0].body).not.toHaveProperty("reasoning_effort");
+  });
+
   it("429 with retry-after: 2 → waits 2000ms then succeeds", async () => {
     const t = setup({ "https://groq.test": [err(429, { "retry-after": "2" }), ok()] });
     expect((await t.client.complete(req)).provider).toBe("groq");

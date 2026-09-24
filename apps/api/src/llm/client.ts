@@ -1,6 +1,14 @@
 import type { Config } from "../config.ts";
 
-export type Provider = { name: string; baseUrl: string; apiKey: string; model: string; tpm: number };
+export type Provider = {
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  tpm: number;
+  /** Sent as `reasoning_effort` when set. */
+  reasoningEffort?: string;
+};
 
 export type LLMErrorCode = "LLM_RATE_LIMITED" | "LLM_UNAVAILABLE" | "LLM_BAD_REQUEST" | "LLM_INVALID_OUTPUT";
 
@@ -68,6 +76,8 @@ function headerWaitMs(headers: Headers): number | undefined {
   return resets.length ? Math.max(...resets) : undefined;
 }
 
+const effort = (v: string) => (v === "off" ? undefined : v);
+
 export function providersFromConfig(config: Config, only?: string): Provider[] {
   const all: Provider[] = [];
   if (config.GROQ_API_KEY) {
@@ -77,6 +87,7 @@ export function providersFromConfig(config: Config, only?: string): Provider[] {
       apiKey: config.GROQ_API_KEY,
       model: config.GROQ_MODEL,
       tpm: config.GROQ_TPM,
+      reasoningEffort: effort(config.GROQ_REASONING_EFFORT),
     });
   }
   if (config.GEMINI_API_KEY) {
@@ -86,6 +97,7 @@ export function providersFromConfig(config: Config, only?: string): Provider[] {
       apiKey: config.GEMINI_API_KEY,
       model: config.GEMINI_MODEL,
       tpm: config.GEMINI_TPM,
+      reasoningEffort: effort(config.GEMINI_REASONING_EFFORT),
     });
   }
   return only ? all.filter((p) => p.name === only) : all;
@@ -143,6 +155,7 @@ export class LLMClient {
       temperature: req.temperature ?? 0.2,
       max_tokens: maxTokens,
       ...(req.json ? { response_format: { type: "json_object" } } : {}),
+      ...(provider.reasoningEffort ? { reasoning_effort: provider.reasoningEffort } : {}),
     });
 
     let failure: Failure = { code: "LLM_UNAVAILABLE", reason: "no attempt made" };
