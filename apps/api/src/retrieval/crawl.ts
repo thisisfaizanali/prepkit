@@ -31,18 +31,47 @@ export type CrawlResult = {
   hiringPageFound: boolean;
   aboutPageFound: boolean;
 };
-export type SitemapReport = { url: string; source: "robots" | "fallback" | "index"; urls: number; children?: number; error?: string };
+export type SitemapReport = {
+  url: string;
+  source: "robots" | "fallback" | "index";
+  /** <loc> URLs parsed from this sitemap. */
+  urls: number;
+  /** How many of those made the top-N candidate cut. */
+  kept: number;
+  children?: number;
+  error?: string;
+};
 export type CrawlOptions = FetchOptions & { maxPages?: number; maxDepth?: number };
 
 type Candidate = { url: string; score: number; kind: LinkKind; fallbackKind: LinkKind; depth: number };
 
-const MAX_SITEMAP_URLS = 500;
-const MAX_SITEMAP_FILES = 5;
+const MAX_SITEMAP_URLS = 20_000; // <loc> URLs parsed in total, across all sitemaps
+const MAX_SITEMAP_FILES = 5; // sitemaps taken from robots.txt, and children per index
+const MAX_SITEMAP_CANDIDATES = 50; // best-scoring sitemap URLs that enter the queue
 const HIRINGISH: PageKind[] = ["hiring", "careers"];
 
 const directoryOf = (pathname: string) => pathname.slice(0, pathname.lastIndexOf("/") + 1);
 // ponytail: naive for co.uk-style TLDs; use a public-suffix list if needed.
 const baseDomain = (host: string) => host.split(".").slice(-2).join(".");
+
+/**
+ * Crawl scope for a start page: same host under the start directory, or (when the start is a site root)
+ * a subdomain of its base domain, e.g. about.gitlab.com → handbook.gitlab.com. The bare base domain is in
+ * scope only when the start host is the base domain or www.<base>, so about.gitlab.com never wanders into
+ * gitlab.com. IP / localhost starts: same host only.
+ */
+export function makeScope(home: URL): (u: URL) => boolean {
+  const prefix = directoryOf(home.pathname);
+  const hostIsLocal = isIP(home.hostname.replace(/^\[|\]$/g, "")) !== 0 || home.hostname === "localhost";
+  const base = baseDomain(home.hostname);
+  const startIsApex = home.hostname === base || home.hostname === `www.${base}`;
+  return (u) => {
+    if (u.host === home.host && u.pathname.startsWith(prefix)) return true;
+    if (hostIsLocal || prefix !== "/") return false;
+    if (u.hostname.endsWith(`.${base}`)) return true;
+    return u.hostname === base && startIsApex;
+  };
+}
 
 export async function crawlCompany(startInput: string, opts: CrawlOptions = {}): Promise<CrawlResult> {
   const maxPages = opts.maxPages ?? 10;
@@ -85,14 +114,8 @@ export async function crawlCompany(startInput: string, opts: CrawlOptions = {}):
 
   const homeUrl = new URL(home.url);
   const prefix = directoryOf(homeUrl.pathname);
-  const hostIsLocal = isIP(homeUrl.hostname.replace(/^\[|\]$/g, "")) !== 0 || homeUrl.hostname === "localhost";
   const context = { startLocalised: LOCALE_PREFIX.test(homeUrl.pathname) };
-  const inScope = (u: URL) => {
-    if (u.host === homeUrl.host && u.pathname.startsWith(prefix)) return true;
-    if (hostIsLocal || prefix !== "/") return false;
-    const base = baseDomain(homeUrl.hostname);
-    return u.hostname === base || u.hostname.endsWith(`.${base}`);
-  };
+  const inScope = makeScope(homeUrl);
 
   const pages: CrawlPage[] = [];
   const seen = new Set<string>([startUrl, home.url]);
@@ -125,8 +148,9 @@ export async function crawlCompany(startInput: string, opts: CrawlOptions = {}):
   const homePage = addPage(home.url, home.body, "home", 0);
   enqueue(homePage.content.links, 1, "home");
 
-  // 2. Sitemaps (silent-skip on failure): robots Sitemap: lines, else <prefix>sitemap.xml. Path-only scoring.
-  const sitemapLinks = await readSitemaps(
+  // 2. Sitemaps (silent-skip on failure): robots Sitemap: lines, else <prefix>sitemap.xml.
+  // Score every parsed URL by path, then queue only the best, so relevant pages deep in a big sitemap still count.
+  const sitemapLocs = await readSitemaps(
     (await robots.sitemaps(homeUrl.origin)).slice(0, MAX_SITEMAP_FILES),
     `${homeUrl.origin}${prefix}sitemap.xml`,
     opts,
@@ -134,7 +158,18 @@ export async function crawlCompany(startInput: string, opts: CrawlOptions = {}):
     skipped,
     sitemaps,
   );
-  enqueue(sitemapLinks.map((url) => ({ url, text: "" })), 1, "home");
+  const sitemapBest = new Map<string, { url: string; score: number; from: SitemapReport }>();
+  for (const { url, from } of sitemapLocs) {
+    const u = new URL(url);
+    if (sitemapBest.has(u.href) || seen.has(u.href) || !inScope(u)) continue;
+    const { score } = scoreLink({ url: u.href, text: "" }, context);
+    if (score > 0) sitemapBest.set(u.href, { url: u.href, score, from });
+  }
+  const topSitemap = [...sitemapBest.values()]
+    .sort((a, b) => b.score - a.score || (a.url < b.url ? -1 : a.url > b.url ? 1 : 0))
+    .slice(0, MAX_SITEMAP_CANDIDATES);
+  for (const c of topSitemap) c.from.kept++;
+  enqueue(topSitemap.map((c) => ({ url: c.url, text: "" })), 1, "home");
 
   // 3. Best-first, making sure one hiring-ish and one about-ish candidate get a turn early.
   const pick = (): Candidate | undefined => {
@@ -196,10 +231,10 @@ async function readSitemaps(
   allowed: (url: string) => Promise<boolean>,
   skipped: CrawlResult["skipped"],
   reports: SitemapReport[],
-): Promise<string[]> {
-  const urls: string[] = [];
+): Promise<{ url: string; from: SitemapReport }[]> {
+  const urls: { url: string; from: SitemapReport }[] = [];
   const read = async (sitemapUrl: string, source: SitemapReport["source"]) => {
-    const report: SitemapReport = { url: sitemapUrl, source, urls: 0 };
+    const report: SitemapReport = { url: sitemapUrl, source, urls: 0, kept: 0 };
     reports.push(report);
     if (urls.length >= MAX_SITEMAP_URLS) return void (report.error = `URL cap of ${MAX_SITEMAP_URLS} already reached`);
     if (!(await allowed(sitemapUrl))) {
@@ -229,7 +264,7 @@ async function readSitemaps(
     for (const loc of locs("url > loc")) {
       if (urls.length >= MAX_SITEMAP_URLS) break;
       try {
-        urls.push(new URL(loc).href);
+        urls.push({ url: new URL(loc).href, from: report });
       } catch {
         // ignore malformed <loc>
       }

@@ -31,6 +31,10 @@ const pages: Record<string, string> = {
     "Interview with our CEO",
     "<main><p>Our CEO talks about anvils, the company story and where Acme is heading next.</p></main>",
   ),
+  "/acme/pages/how-we-hire/": page(
+    "Joining Acme",
+    "<main><p>Our hiring process: recruiter screen, take-home, then a system design interview.</p></main>",
+  ),
   "/acme/legal/privacy": page("Privacy", "<main><p>We respect your privacy.</p></main>"),
   "/acme/join/": page("Careers at Acme", "<main><p>Open roles: Backend Engineer.</p></main>"),
   "/acme/internal/": page("Internal", "<main><p>Secret.</p></main>"),
@@ -40,7 +44,8 @@ const pages: Record<string, string> = {
 
 export type FixtureSite = { base: string; hits: string[]; close: () => Promise<void> };
 
-export async function startFixtureSite(): Promise<FixtureSite> {
+/** bigSitemap: serve a 600-URL sitemap where the only hiring URL is #599. */
+export async function startFixtureSite({ bigSitemap = false } = {}): Promise<FixtureSite> {
   const hits: string[] = [];
   let flaky = 0;
   const server: Server = createServer((req, res) => {
@@ -55,6 +60,12 @@ export async function startFixtureSite(): Promise<FixtureSite> {
       case "/robots.txt":
         return send(200, "text/plain", "User-agent: *\nDisallow: /acme/internal/\n");
       case "/acme/sitemap.xml":
+        if (bigSitemap) {
+          const locs = Array.from({ length: 600 }, (_, i) =>
+            i === 598 ? "/acme/pages/how-we-hire/" : `/acme/team/member-${i + 1}/`,
+          ).map((p) => `<url><loc>http://${req.headers.host}${p}</loc></url>`);
+          return send(200, "application/xml", `<?xml version="1.0"?><urlset>${locs.join("")}</urlset>`);
+        }
         return send(
           200,
           "application/xml",

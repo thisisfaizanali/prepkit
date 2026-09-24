@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { crawlCompany, type CrawlOptions, type CrawlResult } from "./crawl.ts";
+import { crawlCompany, makeScope, type CrawlOptions, type CrawlResult } from "./crawl.ts";
 import { HostLimiter } from "./fetchPage.ts";
 import { closedPort, startFixtureSite, type FixtureSite } from "./fixtureSite.ts";
 import { scoreLink } from "./rankLinks.ts";
@@ -31,7 +31,7 @@ describe("crawlCompany (fixture site)", () => {
 
   it("discovers the sitemap-only handbook page", () => {
     expect(page("/acme/handbook/hiring/")).toBeDefined();
-    expect(result.sitemaps).toEqual([{ url: `${site.base}/acme/sitemap.xml`, source: "fallback", urls: 2 }]);
+    expect(result.sitemaps).toEqual([{ url: `${site.base}/acme/sitemap.xml`, source: "fallback", urls: 2, kept: 2 }]);
   });
 
   it("a hiring-looking URL without hiring content is not classified hiring", () => {
@@ -83,5 +83,42 @@ describe("crawlCompany (fixture site)", () => {
   it("invalid and blocked starts → reachable:false", async () => {
     expect((await crawlCompany("ftp://x", opts())).error?.code).toBe("INVALID_URL");
     expect((await crawlCompany("http://169.254.169.254/", { ...opts(), allowPrivate: false })).error?.code).toBe("BLOCKED_URL");
+  });
+});
+
+describe("sitemap ranking", () => {
+  it("ranks all sitemap URLs before capping: hiring URL #599 of 600 is queued and fetched", async () => {
+    const big = await startFixtureSite({ bigSitemap: true });
+    try {
+      const r = await crawlCompany(`${big.base}/acme/`, opts());
+      expect(r.sitemaps).toEqual([{ url: `${big.base}/acme/sitemap.xml`, source: "fallback", urls: 600, kept: 50 }]);
+      expect(big.hits).toContain("/acme/pages/how-we-hire/");
+      expect(r.pages.find((p) => p.url.endsWith("/acme/pages/how-we-hire/"))).toMatchObject({ kind: "hiring" });
+      expect(r.pages.length).toBeLessThanOrEqual(10);
+    } finally {
+      await big.close();
+    }
+  });
+});
+
+describe("makeScope", () => {
+  const scope = (start: string, url: string) => makeScope(new URL(start))(new URL(url));
+
+  it("subdomain start: sibling subdomains in, apex out", () => {
+    expect(scope("https://about.gitlab.com/", "https://handbook.gitlab.com/handbook/hiring/")).toBe(true);
+    expect(scope("https://about.gitlab.com/", "https://gitlab.com/gitlab-org/gitlab")).toBe(false);
+    expect(scope("https://about.gitlab.com/", "https://about.gitlab.com/jobs/")).toBe(true);
+  });
+
+  it("apex or www start: www and apex both in", () => {
+    expect(scope("https://posthog.com/", "https://www.posthog.com/careers")).toBe(true);
+    expect(scope("https://www.posthog.com/", "https://posthog.com/careers")).toBe(true);
+  });
+
+  it("other domains and path-scoped / IP starts stay narrow", () => {
+    expect(scope("https://posthog.com/", "https://evil-posthog.com/")).toBe(false);
+    expect(scope("https://acme.test/acme/", "https://acme.test/globex/")).toBe(false);
+    expect(scope("https://acme.test/acme/", "https://jobs.acme.test/")).toBe(false);
+    expect(scope("http://127.0.0.1:8080/", "http://127.0.0.2:8080/")).toBe(false);
   });
 });

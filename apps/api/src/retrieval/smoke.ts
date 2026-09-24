@@ -24,7 +24,7 @@ for (const p of crawl.pages) {
 console.log(`sitemaps (${crawl.sitemaps.length}):`);
 for (const s of crawl.sitemaps) {
   const children = s.children !== undefined ? ` index→${s.children} children` : "";
-  console.log(`  [${s.source}] ${s.url}  urls=${s.urls}${children}${s.error ? `  (${s.error})` : ""}`);
+  console.log(`  [${s.source}] ${s.url}  parsed=${s.urls} kept=${s.kept}${children}${s.error ? `  (${s.error})` : ""}`);
 }
 console.log(`skipped (${crawl.skipped.length}):`);
 for (const s of crawl.skipped) console.log(`  ${s.reason}  ${s.url}`);
