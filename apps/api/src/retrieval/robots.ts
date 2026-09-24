@@ -34,8 +34,8 @@ export class Robots {
       return { robot, disallowAll: false };
     } catch (e) {
       const err = e instanceof RetrievalError ? e : new RetrievalError("NETWORK", String(e), url);
-      // 4xx (no robots.txt) or a non-text/oversized file → no usable rules → allow all.
-      const allowAll = /^HTTP_4\d\d$/.test(err.code) || err.code === "UNSUPPORTED_CONTENT_TYPE" || err.code === "TOO_LARGE";
+      // 4xx (no robots.txt) or a non-text file → no usable rules → allow all.
+      const allowAll = /^HTTP_4\d\d$/.test(err.code) || err.code === "UNSUPPORTED_CONTENT_TYPE";
       return { disallowAll: !allowAll, error: err };
     }
   }

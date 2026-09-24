@@ -64,6 +64,7 @@ export async function startFixtureSite(): Promise<FixtureSite> {
         );
       case "/acme/huge": {
         res.writeHead(200, { "content-type": "text/html" }); // chunked, no content-length
+        res.write('<html><body><main><p>Big page</p><a href="/acme/about/">About us</a><p>');
         const chunk = "x".repeat(64 * 1024);
         for (let i = 0; i < 48; i++) res.write(chunk); // 3 MB
         return res.end();

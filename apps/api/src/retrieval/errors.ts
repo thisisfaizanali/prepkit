@@ -6,7 +6,6 @@ export type RetrievalErrorCode =
   | `HTTP_${number}`
   | "TOO_MANY_REDIRECTS"
   | "UNSUPPORTED_CONTENT_TYPE"
-  | "TOO_LARGE"
   | "ROBOTS_DISALLOWED"
   | "UNREACHABLE";
 

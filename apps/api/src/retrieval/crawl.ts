@@ -210,6 +210,7 @@ async function readSitemaps(
     try {
       const page = await fetchPage(sitemapUrl, { ...opts, allowXml: true });
       body = page.body;
+      if (page.truncated) report.error = "truncated at size cap (partial)";
     } catch (e) {
       const code = e instanceof RetrievalError ? e.code : "NETWORK";
       report.error = code;

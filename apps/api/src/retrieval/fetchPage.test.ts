@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { extractContent } from "./clean.ts";
 import { fetchPage, HostLimiter, type FetchOptions } from "./fetchPage.ts";
 import { closedPort, startFixtureSite, type FixtureSite } from "./fixtureSite.ts";
 import { assertFetchable } from "./urlGuard.ts";
@@ -31,8 +32,16 @@ describe("fetchPage", () => {
     await expect(fetchPage(`${site.base}/acme/r`, { ...opts(), guard })).rejects.toMatchObject({ code: "BLOCKED_URL" });
   });
 
-  it("aborts bodies over 2 MB without content-length → TOO_LARGE", async () => {
-    await expect(fetchPage(`${site.base}/acme/huge`, opts())).rejects.toMatchObject({ code: "TOO_LARGE" });
+  it("stops reading at 2 MB (no content-length) and returns the truncated page, links still extractable", async () => {
+    const p = await fetchPage(`${site.base}/acme/huge`, opts());
+    expect(p.truncated).toBe(true);
+    expect(p.body.length).toBe(2 * 1024 * 1024);
+    expect(extractContent(p.body, p.url).links).toEqual([{ url: `${site.base}/acme/about/`, text: "About us" }]);
+    expect((await fetchPage(`${site.base}/acme/`, opts())).truncated).toBe(false);
+  });
+
+  it("allows 5 MB when allowXml", async () => {
+    expect((await fetchPage(`${site.base}/acme/huge`, { ...opts(), allowXml: true })).truncated).toBe(false);
   });
 
   it("rejects binary content → UNSUPPORTED_CONTENT_TYPE", async () => {

@@ -52,6 +52,7 @@ export type FetchOptions = {
   timeoutMs?: number;
   /** Also accept application/xml and text/xml (sitemaps). */
   allowXml?: boolean;
+  /** Body cap; reading stops here and the page is returned truncated. Default 2 MB, or 5 MB with allowXml. */
   maxBytes?: number;
   /** Checks every hop, including redirects. Defaults to assertFetchable with allowPrivate. */
   guard?: (url: URL) => Promise<void>;
@@ -60,8 +61,10 @@ export type FetchOptions = {
   random?: () => number;
 };
 
-export type FetchedPage = { url: string; status: number; contentType: string; body: string };
+export type FetchedPage = { url: string; status: number; contentType: string; body: string; truncated: boolean };
 
+const PAGE_MAX_BYTES = 2 * 1024 * 1024;
+const XML_MAX_BYTES = 5 * 1024 * 1024; // sitemaps are legitimately bigger than pages
 const MAX_REDIRECTS = 5;
 const MAX_ATTEMPTS = 3;
 const MAX_RETRY_AFTER_MS = 10_000;
@@ -153,31 +156,27 @@ async function request(url: URL, opts: FetchOptions): Promise<FetchedPage | { re
     throw new RetrievalError("UNSUPPORTED_CONTENT_TYPE", `Unsupported content type "${contentType || "none"}"`, url.href);
   }
 
-  const body = await readCapped(res, opts.maxBytes ?? 2 * 1024 * 1024, url);
-  return { url: url.href, status: res.status, contentType, body };
+  const { body, truncated } = await readCapped(res, opts.maxBytes ?? (opts.allowXml ? XML_MAX_BYTES : PAGE_MAX_BYTES));
+  return { url: url.href, status: res.status, contentType, body, truncated };
 }
 
-/** Read the body stream, aborting as soon as it exceeds maxBytes (content-length is not trusted). */
-async function readCapped(res: Response, maxBytes: number, url: URL): Promise<string> {
-  const tooLarge = () => new RetrievalError("TOO_LARGE", `Body exceeds ${maxBytes} bytes`, url.href);
-  if (Number(res.headers.get("content-length")) > maxBytes) {
-    await res.body?.cancel();
-    throw tooLarge();
-  }
-  if (!res.body) return "";
+/** Read the body stream up to maxBytes, then stop and return what we have (content-length is not trusted). */
+async function readCapped(res: Response, maxBytes: number): Promise<{ body: string; truncated: boolean }> {
+  if (!res.body) return { body: "", truncated: false };
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let total = 0;
-  let text = "";
+  let body = "";
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
+    if (done) return { body: body + decoder.decode(), truncated: false };
+    const room = maxBytes - total;
+    if (value.byteLength > room) {
+      body += decoder.decode(value.subarray(0, room)); // final decode drops a split multi-byte char
       await reader.cancel();
-      throw tooLarge();
+      return { body, truncated: true };
     }
-    text += decoder.decode(value, { stream: true });
+    total += value.byteLength;
+    body += decoder.decode(value, { stream: true });
   }
-  return text + decoder.decode();
 }
