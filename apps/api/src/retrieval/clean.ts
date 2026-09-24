@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 
 export type ExtractedLink = { url: string; text: string };
-export type ExtractedContent = { title: string; description: string; text: string; links: ExtractedLink[] };
+export type ExtractedContent = { title: string; siteName: string; description: string; text: string; links: ExtractedLink[] };
 
 const MAX_TEXT = 20_000;
 const NOISE = "script, style, noscript, svg, iframe, form, nav, header, footer, aside, [aria-hidden=true]";
@@ -35,6 +35,7 @@ export function extractContent(html: string, pageUrl: string): ExtractedContent 
   });
 
   const title = squash($("title").first().text()) || squash($("h1").first().text());
+  const siteName = squash($('meta[property="og:site_name"]').attr("content") ?? "");
   const description = squash(
     $('meta[name="description"]').attr("content") ?? $('meta[property="og:description"]').attr("content") ?? "",
   );
@@ -51,5 +52,5 @@ export function extractContent(html: string, pageUrl: string): ExtractedContent 
     .trim()
     .slice(0, MAX_TEXT);
 
-  return { title, description, text, links: [...links].map(([url, text]) => ({ url, text })) };
+  return { title, siteName, description, text, links: [...links].map(([url, text]) => ({ url, text })) };
 }

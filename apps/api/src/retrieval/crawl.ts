@@ -12,6 +12,8 @@ export type PageKind = "home" | LinkKind;
 export type CrawlPage = {
   url: string;
   title: string;
+  /** og:site_name, if the page has one. */
+  siteName: string;
   description: string;
   text: string;
   kind: PageKind;
@@ -142,7 +144,7 @@ export async function crawlCompany(startInput: string, opts: CrawlOptions = {}):
     const contentScore = scorePageContent(content.text);
     const finalKind: PageKind =
       link === "home" ? "home" : contentScore >= HIRING_CONTENT_THRESHOLD ? "hiring" : link.kind === "hiring" ? link.fallbackKind : link.kind;
-    pages.push({ url, title: content.title, description: content.description, text: content.text, kind: finalKind, linkScore, contentScore });
+    pages.push({ url, title: content.title, siteName: content.siteName, description: content.description, text: content.text, kind: finalKind, linkScore, contentScore });
     return { content, kind: finalKind };
   };
 
