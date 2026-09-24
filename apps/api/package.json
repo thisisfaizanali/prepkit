@@ -7,5 +7,8 @@
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": { "@prepkit/shared": "*" }
+  "dependencies": {
+    "@prepkit/shared": "*",
+    "zod": "^4.6.5"
+  }
 }
