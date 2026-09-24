@@ -1,0 +1,17 @@
+Full-Stack Engineer (TypeScript)
+
+About us
+Brightmeal is a 30-person startup that helps hospital kitchens plan menus for patients with dietary restrictions. Our web app is used by dietitians and kitchen staff in over 200 hospitals across the UK and Ireland.
+
+About the role
+You will work across our React front end and Node.js back end, shipping features that dietitians use every day.
+
+Requirements:
+- 3+ years building web applications with TypeScript
+- Experience with React
+- Experience with Node.js and PostgreSQL
+- Comfortable talking directly with customers to understand their needs
+
+Bonus points for:
+- Experience in healthcare software or with patient data regulations (GDPR, NHS DSPT)
+- Familiarity with GraphQL

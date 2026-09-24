@@ -1,0 +1,38 @@
+Senior Backend Engineer, Data Pipelines
+
+Location: Remote (UTC-2 to UTC+3)
+Team: Ingestion
+
+About the role
+We're looking for a senior backend engineer to join the Ingestion team, which owns the pipeline that receives billions of analytics events every day and makes them queryable within seconds.
+
+What you'll do
+- Design, build and operate high-throughput services that ingest and process event data
+- Own features end to end, from talking to customers to shipping and monitoring in production
+- Improve the reliability and cost-efficiency of our ClickHouse and Kafka infrastructure
+- Review code and write design docs that other engineers can build on
+- Take part in a shared on-call rotation
+
+Requirements
+- 5+ years of professional backend development experience
+- Strong proficiency in Python or Go
+- Hands-on experience running Kafka (or a similar streaming system) in production
+- Solid understanding of SQL and analytical databases
+- Experience designing systems for high throughput and low latency
+- You have shipped and supported services running on Kubernetes
+- Excellent written communication; we are a remote, async-first company
+- A track record of mentoring other engineers
+
+Nice to have
+- Experience with ClickHouse
+- Rust experience
+- Contributions to open-source projects
+- Familiarity with product analytics tools
+
+What we offer
+- Competitive salary and meaningful equity
+- Unlimited time off with a 25-day minimum
+- A generous home-office budget
+- Twice-yearly company offsites
+
+We value diverse perspectives and encourage people from all backgrounds to apply, even if you don't meet every requirement listed.
