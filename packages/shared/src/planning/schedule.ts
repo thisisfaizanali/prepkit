@@ -14,6 +14,39 @@ const CATEGORY_LABELS: Record<Question["category"], string> = {
 const EMPTY_FOCUS = "General preparation — no questions available";
 
 const learnMinutes = (q: Question) => MINUTES_BY_DIFFICULTY[q.difficulty] ?? 0;
+const reviewMinutes = () => REVIEW_MINUTES;
+
+/** Truncate at the last word boundary within `max` chars, appending "…" only when cut. */
+function truncate(text: string, max = 40): string {
+  if (text.length <= max) return text;
+  const space = text.lastIndexOf(" ", max);
+  return text.slice(0, space > 0 ? space : max).trimEnd() + "…";
+}
+
+/**
+ * Split items into `days` contiguous non-empty chunks, balanced by cost.
+ * Each day takes items while under its minutes target, and at least its fair share by count,
+ * so leftovers land on earlier (higher-ranked) days instead of piling onto the last one.
+ */
+function chunkBalanced<T>(items: T[], days: number, cost: (item: T) => number): T[][] {
+  const chunks: T[][] = [];
+  let i = 0;
+  let remainingMinutes = items.reduce((sum, x) => sum + cost(x), 0);
+  for (let d = 1; d <= days; d++) {
+    const daysLeft = days - d + 1;
+    const target = remainingMinutes / daysLeft;
+    const minCount = Math.ceil((items.length - i) / daysLeft);
+    const chunk = [items[i++]];
+    let dayMinutes = cost(chunk[0]);
+    while (i < items.length && items.length - i > daysLeft - 1 && (dayMinutes < target || chunk.length < minCount)) {
+      dayMinutes += cost(items[i]);
+      chunk.push(items[i++]);
+    }
+    remainingMinutes -= dayMinutes;
+    chunks.push(chunk);
+  }
+  return chunks;
+}
 
 export function buildSchedule(requirements: Requirement[], questions: Question[], daysAvailable: number): Schedule {
   const N = daysAvailable;
@@ -31,61 +64,41 @@ export function buildSchedule(requirements: Requirement[], questions: Question[]
     .sort((a, b) => Number(b.must) - Number(a.must) || b.q.difficulty - a.q.difficulty || a.index - b.index)
     .map((x) => x.q);
 
-  // g) up to 2 distinct requirement texts, first-appearance order, 40 chars each.
+  // g) up to 2 distinct requirement texts, first-appearance order.
   const reqText = (qs: Question[]) => {
     const texts: string[] = [];
     for (const id of new Set(qs.flatMap((q) => q.requirement_ids))) {
       const r = reqById.get(id);
-      if (r && texts.length < 2) texts.push(r.text.slice(0, 40));
+      if (r && texts.length < 2) texts.push(truncate(r.text));
     }
     return texts.join(", ");
   };
-  const withText = (prefix: string, qs: Question[]) => {
+  const toDay = (day: number, prefix: string, qs: Question[], cost: (q: Question) => number): ScheduleDay => {
     const text = reqText(qs);
-    return text ? `${prefix}: ${text}` : prefix;
+    return {
+      day,
+      focus: text ? `${prefix}: ${text}` : prefix,
+      question_ids: qs.map((q) => q.id),
+      minutes: qs.reduce((sum, q) => sum + cost(q), 0),
+    };
   };
-  const learningDay = (day: number, qs: Question[]): ScheduleDay => ({
-    day,
-    focus: withText([...new Set(qs.map((q) => CATEGORY_LABELS[q.category]))].join(" + "), qs),
-    question_ids: qs.map((q) => q.id),
-    minutes: qs.reduce((sum, q) => sum + learnMinutes(q), 0),
-  });
-
-  const days: ScheduleDay[] = [];
+  const learningDay = (day: number, qs: Question[]) =>
+    toDay(day, [...new Set(qs.map((q) => CATEGORY_LABELS[q.category]))].join(" + "), qs, learnMinutes);
 
   if (ranked.length >= N) {
-    // c) N contiguous non-empty chunks, balanced by minutes; last day takes the rest.
-    let i = 0;
-    let remainingMinutes = ranked.reduce((sum, q) => sum + learnMinutes(q), 0);
-    for (let d = 1; d <= N; d++) {
-      const laterDays = N - d;
-      const target = remainingMinutes / (laterDays + 1);
-      const chunk = [ranked[i++]];
-      let dayMinutes = learnMinutes(chunk[0]);
-      while (i < ranked.length && (d === N || (dayMinutes < target && ranked.length - i > laterDays))) {
-        dayMinutes += learnMinutes(ranked[i]);
-        chunk.push(ranked[i++]);
-      }
-      remainingMinutes -= dayMinutes;
-      days.push(learningDay(d, chunk));
-    }
-  } else {
-    // d) one question per learning day, then round-robin the ranked list over review days.
-    ranked.forEach((q, i) => days.push(learningDay(i + 1, [q])));
-    const reviewDays = N - ranked.length;
-    const buckets: Question[][] = Array.from({ length: reviewDays }, () => []);
-    for (let k = 0; k < Math.max(ranked.length, reviewDays); k++) {
-      buckets[k % reviewDays].push(ranked[k % ranked.length]);
-    }
-    buckets.forEach((qs, i) =>
-      days.push({
-        day: ranked.length + i + 1,
-        focus: withText("Review", qs),
-        question_ids: qs.map((q) => q.id),
-        minutes: qs.length * REVIEW_MINUTES,
-      }),
-    );
+    // c) N contiguous chunks of the ranked list, balanced by learning minutes.
+    return { days_available: N, days: chunkBalanced(ranked, N, learnMinutes).map((qs, i) => learningDay(i + 1, qs)) };
   }
 
+  // d) one question per learning day, then the ranked list again, chunked over review days.
+  // More review days than questions → repeat whole passes of the list so no day is empty.
+  const reviewDays = N - ranked.length;
+  const reviewList = Array.from({ length: Math.ceil(reviewDays / ranked.length) }, () => ranked).flat();
+  const days = [
+    ...ranked.map((q, i) => learningDay(i + 1, [q])),
+    ...chunkBalanced(reviewList, reviewDays, reviewMinutes).map((qs, i) =>
+      toDay(ranked.length + i + 1, "Review", qs, reviewMinutes),
+    ),
+  ];
   return { days_available: N, days };
 }

@@ -55,6 +55,17 @@ describe("buildSchedule", () => {
     expect(avg(s.days[0].question_ids)).toBeLessThan(avg(s.days.at(-1)!.question_ids));
   });
 
+  it("review days preserve ranked order", () => {
+    const s = buildSchedule(requirements, questions, 10);
+    expect(s.days.slice(questions.length).flatMap((d) => d.question_ids)).toEqual(rankOrder);
+  });
+
+  it("truncates long requirement text at a word boundary with …", () => {
+    const focus = buildSchedule(requirements, questions, 10).days[0].focus;
+    expect(focus).toBe("System design: Designing scalable distributed systems…");
+    expect(buildSchedule(requirements, questions, 10).days[1].focus).not.toContain("…");
+  });
+
   it("N=1 → everything on day 1 in rank order", () => {
     expect(buildSchedule(requirements, questions, 1).days[0].question_ids).toEqual(rankOrder);
   });
