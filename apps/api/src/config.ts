@@ -24,6 +24,7 @@ const EnvSchema = z.object({
   LLM_TIMEOUT_MS: positiveInt(60000),
   // The batch grader serves fixture sites from localhost, so private URLs are allowed outside production.
   // In production they must be blocked (SSRF: cloud metadata, internal services).
+  TAVILY_API_KEY: optionalString,
   ALLOW_PRIVATE_URLS: z.preprocess(
     (v) => (v === undefined || v === "" ? process.env.NODE_ENV !== "production" : v === "true" || v === "1"),
     z.boolean(),
