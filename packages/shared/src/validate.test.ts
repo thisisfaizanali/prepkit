@@ -51,7 +51,7 @@ describe("validateKit", () => {
     const k: any = fixture();
     k.extra = 1;
     k.source.foo = "bar";
-    k.questions[0].meta = { source: "ai", edited: false, pinned: true, custom: 1 };
+    k.questions[0].meta = { origin: "generated", edited: false, pinned: true, custom: 1 };
     k.warnings = ["job description is very thin"];
     expect(validateKit(k)).toMatchObject({ ok: true });
   });

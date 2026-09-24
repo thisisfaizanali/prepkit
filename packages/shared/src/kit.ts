@@ -3,13 +3,13 @@ import { z } from "zod";
 export const REQUIREMENT_KINDS = ["technical", "behavioural", "domain"] as const;
 export const PRIORITIES = ["must", "nice"] as const;
 export const QUESTION_CATEGORIES = ["technical", "behavioural", "system-design", "company-fit"] as const;
-export const META_SOURCES = ["ai", "user"] as const;
+export const META_ORIGINS = ["generated", "user"] as const;
 
 const int = (min: number) => z.number().int().min(min);
 
 // Optional extension: provenance/edit state for user-editable items.
 export const MetaSchema = z.object({
-  source: z.enum(META_SOURCES),
+  origin: z.enum(META_ORIGINS),
   edited: z.boolean(),
   pinned: z.boolean(),
 });

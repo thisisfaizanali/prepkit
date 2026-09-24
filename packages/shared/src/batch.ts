@@ -5,6 +5,7 @@ export const BatchCaseSchema = z.object({
   id: z.string(),
   jd: z.string(),
   company_url: z.string(),
+  days: z.number().int().min(1),
 });
 export const BatchInputSchema = z.array(BatchCaseSchema);
 
