@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "llm:smoke": "tsx src/llm/smoke.ts"
+    "llm:smoke": "tsx src/llm/smoke.ts",
+    "research:smoke": "tsx src/retrieval/smoke.ts"
   },
   "dependencies": {
     "@prepkit/shared": "*",
