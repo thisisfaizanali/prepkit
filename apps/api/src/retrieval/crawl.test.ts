@@ -86,6 +86,38 @@ describe("crawlCompany (fixture site)", () => {
   });
 });
 
+describe("early hiring reservation", () => {
+  it("a hiring-kind sitemap URL (path-only score) is fetched before higher-scoring about/careers anchor links", () => {
+    const order = result.pages.map((p) => p.url.slice(site.base.length));
+    const handbook = order.indexOf("/acme/handbook/hiring/");
+    expect(handbook).toBeGreaterThan(0);
+    expect(handbook).toBeLessThanOrEqual(2); // one of the two reserved picks right after home
+    const handbookScore = result.pages[handbook].linkScore;
+    for (const path of ["/acme/about/", "/acme/join/"]) {
+      const i = order.indexOf(path);
+      expect(result.pages[i].linkScore).toBeGreaterThan(handbookScore);
+      expect(i).toBeGreaterThan(handbook);
+    }
+  });
+});
+
+describe("sitemap dedupe", () => {
+  it("a sitemap referenced twice is fetched and parsed once", async () => {
+    const dup = await startFixtureSite({ dupSitemaps: true });
+    try {
+      const r = await crawlCompany(`${dup.base}/acme/`, opts());
+      expect(dup.hits.filter((h) => h === "/acme/sitemap.xml")).toHaveLength(1);
+      expect(r.sitemaps.map((s) => [s.url.slice(dup.base.length), s.source, s.error])).toEqual([
+        ["/acme/sitemap-index.xml", "robots", undefined],
+        ["/acme/sitemap.xml", "index", undefined],
+        ["/acme/sitemap.xml", "robots", "duplicate"],
+      ]);
+    } finally {
+      await dup.close();
+    }
+  });
+});
+
 describe("sitemap ranking", () => {
   it("ranks all sitemap URLs before capping: hiring URL #599 of 600 is queued and fetched", async () => {
     const big = await startFixtureSite({ bigSitemap: true });

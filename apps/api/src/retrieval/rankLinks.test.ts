@@ -41,6 +41,13 @@ describe("scoreLink", () => {
     expect(s("https://a.test/x", "Interview")).toMatchObject({ kind: "hiring", fallbackKind: "other" });
   });
 
+  it("penalises /blog/, /news/ and /press/ posts", () => {
+    const real = s("https://a.test/careers", "Careers").score;
+    for (const seg of ["blog", "news", "press"]) {
+      expect(s(`https://a.test/${seg}/careers`, "Careers").score).toBe(real - 6);
+    }
+  });
+
   it("anchor text weighs more than path", () => {
     expect(s("https://a.test/x", "Careers").score).toBeGreaterThan(s("https://a.test/careers", "Go").score);
   });

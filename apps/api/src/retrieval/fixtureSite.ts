@@ -44,8 +44,11 @@ const pages: Record<string, string> = {
 
 export type FixtureSite = { base: string; hits: string[]; close: () => Promise<void> };
 
-/** bigSitemap: serve a 600-URL sitemap where the only hiring URL is #599. */
-export async function startFixtureSite({ bigSitemap = false } = {}): Promise<FixtureSite> {
+/**
+ * bigSitemap: serve a 600-URL sitemap where the only hiring URL is #599.
+ * dupSitemaps: robots.txt lists a sitemap index and sitemap.xml, and the index lists sitemap.xml again.
+ */
+export async function startFixtureSite({ bigSitemap = false, dupSitemaps = false } = {}): Promise<FixtureSite> {
   const hits: string[] = [];
   let flaky = 0;
   const server: Server = createServer((req, res) => {
@@ -57,8 +60,17 @@ export async function startFixtureSite({ bigSitemap = false } = {}): Promise<Fix
     };
     if (pages[path]) return send(200, "text/html; charset=utf-8", pages[path]);
     switch (path) {
-      case "/robots.txt":
-        return send(200, "text/plain", "User-agent: *\nDisallow: /acme/internal/\n");
+      case "/robots.txt": {
+        const origin = `http://${req.headers.host}`;
+        const sitemaps = dupSitemaps ? `Sitemap: ${origin}/acme/sitemap-index.xml\nSitemap: ${origin}/acme/sitemap.xml\n` : "";
+        return send(200, "text/plain", `User-agent: *\nDisallow: /acme/internal/\n${sitemaps}`);
+      }
+      case "/acme/sitemap-index.xml":
+        return send(
+          200,
+          "application/xml",
+          `<?xml version="1.0"?><sitemapindex><sitemap><loc>http://${req.headers.host}/acme/sitemap.xml</loc></sitemap></sitemapindex>`,
+        );
       case "/acme/sitemap.xml":
         if (bigSitemap) {
           const locs = Array.from({ length: 600 }, (_, i) =>

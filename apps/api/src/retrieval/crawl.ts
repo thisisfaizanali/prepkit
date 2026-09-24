@@ -48,6 +48,7 @@ type Candidate = { url: string; score: number; kind: LinkKind; fallbackKind: Lin
 const MAX_SITEMAP_URLS = 20_000; // <loc> URLs parsed in total, across all sitemaps
 const MAX_SITEMAP_FILES = 5; // sitemaps taken from robots.txt, and children per index
 const MAX_SITEMAP_CANDIDATES = 50; // best-scoring sitemap URLs that enter the queue
+const RESERVED_HIRING_FETCHES = 2; // first picks after the start page reserved for "hiring"-kind candidates
 const HIRINGISH: PageKind[] = ["hiring", "careers"];
 
 const directoryOf = (pathname: string) => pathname.slice(0, pathname.lastIndexOf("/") + 1);
@@ -171,13 +172,14 @@ export async function crawlCompany(startInput: string, opts: CrawlOptions = {}):
   for (const c of topSitemap) c.from.kept++;
   enqueue(topSitemap.map((c) => ({ url: c.url, text: "" })), 1, "home");
 
-  // 3. Best-first, making sure one hiring-ish and one about-ish candidate get a turn early.
+  // 3. Best-first. The first picks after the start page go to strictly-hiring candidates (path-only sitemap
+  // URLs can't outscore anchor-text links otherwise); then one about-ish candidate gets an early turn.
+  let picks = 0;
   const pick = (): Candidate | undefined => {
     const ordered = [...queue.values()].sort((a, b) => b.score - a.score || (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
-    const haveHiring = pages.some((p) => HIRINGISH.includes(p.kind));
     const haveAbout = pages.some((p) => p.kind === "about");
     return (
-      (!haveHiring && ordered.find((c) => HIRINGISH.includes(c.kind))) ||
+      (picks++ < RESERVED_HIRING_FETCHES && ordered.find((c) => c.kind === "hiring")) ||
       (!haveAbout && ordered.find((c) => c.kind === "about")) ||
       ordered[0]
     );
@@ -233,9 +235,12 @@ async function readSitemaps(
   reports: SitemapReport[],
 ): Promise<{ url: string; from: SitemapReport }[]> {
   const urls: { url: string; from: SitemapReport }[] = [];
+  const parsed = new Set<string>();
   const read = async (sitemapUrl: string, source: SitemapReport["source"]) => {
     const report: SitemapReport = { url: sitemapUrl, source, urls: 0, kept: 0 };
     reports.push(report);
+    if (parsed.has(sitemapUrl)) return void (report.error = "duplicate");
+    parsed.add(sitemapUrl);
     if (urls.length >= MAX_SITEMAP_URLS) return void (report.error = `URL cap of ${MAX_SITEMAP_URLS} already reached`);
     if (!(await allowed(sitemapUrl))) {
       report.error = "ROBOTS_DISALLOWED";

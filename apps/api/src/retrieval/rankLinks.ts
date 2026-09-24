@@ -35,6 +35,8 @@ export const LINK_SIGNALS = {
     datedPost: -6,
     localePrefix: -6,
     deepPath: -4,
+    /** /blog/, /news/, /press/: hiring-themed posts shouldn't outrank real site pages. */
+    postPath: -6,
   },
   /** Links found on a hiring/careers page get this bonus (interview pages hang off careers). */
   foundOnHiringPageBonus: 5,
@@ -50,7 +52,8 @@ export const CONTENT_SIGNALS = [
 export const HIRING_CONTENT_THRESHOLD = 3;
 
 const FILE_EXT = /\.(pdf|jpe?g|png|gif|svg|webp|zip|gz|xml|json|mp4|mp3|docx?|pptx?|xlsx?)$/i;
-const DATED = /\/\d{4}\/\d{2}(\/|$)/;
+const POST_SEGMENTS = ["blog", "news", "press"];
+const DATED =/\/\d{4}\/\d{2}(\/|$)/;
 export const LOCALE_PREFIX = /^\/(fr|de|es|it|pt|pt-br|ja|ko|zh|zh-cn|zh-tw|nl|ru|pl|sv|tr|da|fi|no|nb|cs|uk)(\/|$)/i;
 
 const normalize = (s: string) =>
@@ -103,6 +106,7 @@ export function scoreLink(link: { url: string; text: string }, context: LinkCont
   if (DATED.test(url.pathname)) score += S.penalties.datedPost;
   if (!context.startLocalised && LOCALE_PREFIX.test(url.pathname)) score += S.penalties.localePrefix;
   if (segments.length > S.maxPathSegments) score += S.penalties.deepPath;
+  if (segments.some((seg) => POST_SEGMENTS.includes(seg))) score += S.penalties.postPath;
 
   return { score, kind, fallbackKind };
 }
