@@ -3,6 +3,7 @@ import { setServers } from "node:dns";
 import { config } from "./config.ts";
 import { createApp } from "./http/app.ts";
 import { recoverJobs } from "./jobs/recover.ts";
+import { Regenerator } from "./jobs/regenerate.ts";
 import { JobRunner } from "./jobs/runner.ts";
 import { connectMongo } from "./persistence/mongo.ts";
 import { createPipelineDeps } from "./pipeline/deps.ts";
@@ -25,9 +26,12 @@ const pipeline = createPipelineDeps(config, {
 const runner = new JobRunner(repos.kits, (input, onProgress) => runPipeline(input, { ...pipeline, onProgress }, { timeoutMs: API_TIMEOUT_MS }));
 
 const recovered = await recoverJobs(repos.kits, runner);
-if (recovered.requeued || recovered.interrupted) console.log(`Recovered jobs: ${recovered.requeued} re-queued, ${recovered.interrupted} marked INTERRUPTED`);
+if (recovered.requeued || recovered.interrupted || recovered.regenerationsInterrupted) {
+  console.log(`Recovered: ${recovered.requeued} kit(s) re-queued, ${recovered.interrupted} kit(s) and ${recovered.regenerationsInterrupted} regeneration(s) marked INTERRUPTED`);
+}
 
-const app = createApp({ repos, jobs: runner, webOrigin: config.WEB_ORIGIN });
+const regen = new Regenerator(repos.kits, pipeline); // same LLM client (and pacing) as generation jobs
+const app = createApp({ repos, jobs: runner, regen, webOrigin: config.WEB_ORIGIN });
 const server = app.listen(config.PORT, () => console.log(`prepkit API on http://localhost:${config.PORT} (db "${config.MONGODB_DB}")`));
 
 const shutdown = () => {

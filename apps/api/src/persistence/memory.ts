@@ -46,6 +46,17 @@ export function createMemoryRepos(now: () => number = Date.now): Repos {
         kits.set(id, { ...k, ...copy(extra), kit: copy(kit), version: expectedVersion + 1, updatedAt: new Date(now()) });
         return true;
       },
+      async claimRegeneration(userId, id, regeneration) {
+        const k = kits.get(id);
+        if (!k || k.userId !== userId || k.regeneration?.status === "running") return false;
+        kits.set(id, { ...k, regeneration: copy(regeneration), updatedAt: new Date(now()) });
+        return true;
+      },
+      async failRunningRegenerations(error, at) {
+        const stuck = [...kits.values()].filter((k) => k.regeneration?.status === "running");
+        for (const k of stuck) k.regeneration = { ...k.regeneration!, status: "failed", error: { ...error }, finishedAt: at };
+        return stuck.length;
+      },
       async delete(userId, id) {
         return kits.get(id)?.userId === userId && kits.delete(id);
       },

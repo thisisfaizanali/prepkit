@@ -1,7 +1,7 @@
 import { checkCoverage, type Coverage } from "@prepkit/shared";
 import type { PipelineDeps } from "../trace.ts";
 import type { KitRequirement } from "./extractRequirements.ts";
-import { errorCode, generateQuestions, numberQuestions, QUESTION_META, type DraftQuestion, type KitQuestion, type QuestionContext } from "./generateQuestions.ts";
+import { errorCode, generateQuestions, QUESTION_META, type DraftQuestion, type QuestionContext } from "./generateQuestions.ts";
 
 /**
  * Pass 1 checks the draft; passes 2–3 retry only the gaps with targeted prompts. Beyond that we'd be burning
@@ -31,18 +31,23 @@ function fallbackQuestion(r: KitRequirement): DraftQuestion {
   };
 }
 
+/**
+ * Returns the questions it `added` (gap + fallback drafts, without ids): the caller numbers them, because only it
+ * knows the kit's id sequence.
+ */
 export async function coverageLoop(
-  questions: KitQuestion[],
+  questions: Pick<DraftQuestion, "prompt" | "requirement_ids">[],
   ctx: QuestionContext,
   deps: Pick<PipelineDeps, "llm" | "now" | "onProgress">,
-): Promise<{ questions: KitQuestion[]; coverage: Coverage; passes: CoveragePass[]; warnings: string[] }> {
-  const all = [...questions];
+): Promise<{ added: DraftQuestion[]; coverage: Coverage; passes: CoveragePass[]; warnings: string[] }> {
+  const added: DraftQuestion[] = [];
+  const all = () => [...questions, ...added];
   const passes: CoveragePass[] = [];
   const warnings: string[] = [];
-  const append = (drafts: DraftQuestion[]) => all.push(...numberQuestions(drafts, all.length + 1));
+  const append = (drafts: DraftQuestion[]) => added.push(...drafts);
 
   for (let pass = 1; pass <= MAX_PASSES; pass++) {
-    const { uncovered_requirement_ids: uncovered } = checkCoverage(ctx.requirements, all);
+    const { uncovered_requirement_ids: uncovered } = checkCoverage(ctx.requirements, all());
     passes.push({ pass, uncovered });
     deps.onProgress({ step: "coverage_check", status: "done", detail: `pass ${pass}: ${uncovered.length ? `uncovered ${uncovered.join(", ")}` : "all covered"}` });
     if (uncovered.length === 0 || pass === MAX_PASSES) break;
@@ -63,14 +68,14 @@ export async function coverageLoop(
     append(drafts.flat());
   }
 
-  const { uncovered_must_ids } = checkCoverage(ctx.requirements, all);
+  const { uncovered_must_ids } = checkCoverage(ctx.requirements, all());
   if (uncovered_must_ids.length) {
     append(ctx.requirements.filter((r) => uncovered_must_ids.includes(r.id)).map(fallbackQuestion));
     warnings.push(`No generated question covered must-have requirement(s) ${uncovered_must_ids.join(", ")}; added a template question for each.`);
   }
-  const final = checkCoverage(ctx.requirements, all);
+  const final = checkCoverage(ctx.requirements, all());
   return {
-    questions: all,
+    added,
     coverage: { uncovered_requirement_ids: final.uncovered_requirement_ids, passes: passes.length },
     passes,
     warnings,

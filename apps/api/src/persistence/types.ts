@@ -77,6 +77,10 @@ export interface KitRepo {
    * `expectedVersion`. False means someone else wrote first: reload and retry.
    */
   casKit(userId: string, id: string, expectedVersion: number, kit: KitDoc["kit"], extra?: Partial<Pick<KitDoc, "regeneration">>): Promise<boolean>;
+  /** Atomically start a regeneration unless one is already running. False → one is in progress. */
+  claimRegeneration(userId: string, id: string, regeneration: Regeneration): Promise<boolean>;
+  /** Startup recovery: every running regeneration → failed with `error`. Returns how many. */
+  failRunningRegenerations(error: { code: string; message: string }, at: Date): Promise<number>;
   delete(userId: string, id: string): Promise<boolean>;
   findByStatus(statuses: KitStatus[]): Promise<KitDoc[]>;
 }

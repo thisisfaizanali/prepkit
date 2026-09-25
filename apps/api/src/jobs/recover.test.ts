@@ -15,16 +15,16 @@ describe("recoverJobs", () => {
     const repos = createMemoryRepos();
     await repos.kits.insert(doc("running1", "running"));
     await repos.kits.insert(doc("queued1", "queued"));
-    await repos.kits.insert(doc("done1", "done"));
+    await repos.kits.insert({ ...doc("done1", "done"), regeneration: { section: "brief", status: "running", startedAt: new Date(0) } });
     const runner = new JobRunner(repos.kits, fakeRun);
-    expect(await recoverJobs(repos.kits, runner)).toEqual({ requeued: 1, interrupted: 1 });
+    expect(await recoverJobs(repos.kits, runner)).toEqual({ requeued: 1, interrupted: 1, regenerationsInterrupted: 1 });
     await runner.idle();
     expect((await repos.kits.getById("running1"))!).toMatchObject({
       status: "failed",
       error: { code: "INTERRUPTED", message: "Generation was interrupted by a server restart — retry to continue" },
     });
     expect((await repos.kits.getById("queued1"))!.status).toBe("done");
-    expect((await repos.kits.getById("done1"))!.status).toBe("done");
+    expect((await repos.kits.getById("done1"))!).toMatchObject({ status: "done", regeneration: { status: "failed", error: { code: "INTERRUPTED" } } });
   });
 
 });

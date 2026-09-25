@@ -47,6 +47,15 @@ describe("generateQuestions", () => {
   });
 });
 
+describe("generateQuestions avoid list", () => {
+  it("lists kept questions as untrusted 'do not duplicate' context", async () => {
+    const llm = fakeLLM({ "questions:technical": { questions: [] } });
+    await generateQuestions(job("technical", ["r1"]), ctx, fakeDeps({ llm }), { avoid: ["My pinned question"] });
+    expect(llm.calls[0].user).toContain("do not duplicate them");
+    expect(llm.calls[0].user).toContain('<untrusted_content source="existing_questions">\n- My pinned question');
+  });
+});
+
 describe("generateAllQuestions", () => {
   it("numbers by category order then model order; a failed job → warning, others kept", async () => {
     const llm = fakeLLM({

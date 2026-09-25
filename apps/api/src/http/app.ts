@@ -1,6 +1,8 @@
 import express, { type Express, type RequestHandler } from "express";
 import helmet from "helmet";
+import { Regenerator } from "../jobs/regenerate.ts";
 import type { JobQueue } from "../jobs/runner.ts";
+import { LLMError } from "../llm/client.ts";
 import type { Repos } from "../persistence/types.ts";
 import { authRouter, requireAuth, type AuthDeps } from "./auth.ts";
 import { errorHandler, notFound } from "./errors.ts";
@@ -11,6 +13,8 @@ export type AppDeps = {
   repos: Repos;
   /** Where new and retried kits are sent for generation. */
   jobs: JobQueue;
+  /** Section regeneration worker. Defaults to one whose LLM is unavailable (enough for tests that don't regenerate). */
+  regen?: Regenerator;
   now?: () => number;
   production?: boolean;
   /** Enables CORS (with credentials) for this origin only. */
@@ -51,7 +55,13 @@ export function createApp(deps: AppDeps): Express {
 
   app.get("/api/health", (_req, res) => void res.json({ ok: true }));
   app.use("/api/auth", authRouter(auth));
-  app.use("/api/kits", requireAuth(auth), builderRouter({ kits: deps.repos.kits }), kitsRouter({ kits: deps.repos.kits, queue: deps.jobs, now: auth.now }));
+  const regen =
+    deps.regen ??
+    new Regenerator(deps.repos.kits, {
+      llm: { complete: () => Promise.reject(new LLMError("LLM_UNAVAILABLE", "No LLM configured for regeneration")) },
+      now: auth.now,
+    });
+  app.use("/api/kits", requireAuth(auth), builderRouter({ kits: deps.repos.kits, regen }), kitsRouter({ kits: deps.repos.kits, queue: deps.jobs, now: auth.now }));
 
   app.use(() => {
     throw notFound("No such endpoint");

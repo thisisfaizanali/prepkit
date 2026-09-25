@@ -5,7 +5,7 @@ import { normalizeCompanyUrl } from "../retrieval/urlGuard.ts";
 import { companyBrief } from "./steps/companyBrief.ts";
 import { coverageLoop } from "./steps/coverageLoop.ts";
 import { generateFlashcards } from "./steps/generateFlashcards.ts";
-import { errorCode, generateAllQuestions, QUESTION_META } from "./steps/generateQuestions.ts";
+import { errorCode, generateAllQuestions, numberQuestions, QUESTION_META } from "./steps/generateQuestions.ts";
 import { planQuestionJobs } from "./steps/planQuestions.ts";
 import { extractAndResearch } from "./steps/research.ts";
 import { summarizeHiringProcess } from "./steps/summarizeHiringProcess.ts";
@@ -108,11 +108,12 @@ async function run({ jd, company_url, days }: PipelineInput, outer: PipelineDeps
   const ctx = { requirements, role: { title: x.title, seniority: x.seniority }, hiring, brief, companyName: research.companyName };
   const drafted = await generateAllQuestions(jobs, ctx, deps);
   const covered = await coverageLoop(drafted.questions, ctx, deps);
-  const cards = await generateFlashcards(requirements, covered.questions, deps);
+  const questions = [...drafted.questions, ...numberQuestions(covered.added, drafted.questions.length + 1)];
+  const cards = await generateFlashcards(requirements, questions, deps);
   warnings.push(...drafted.warnings, ...covered.warnings, ...cards.warnings);
 
-  const schedule = buildSchedule(requirements, covered.questions, days);
-  onProgress({ step: "schedule", status: "done", detail: `${schedule.days.length} days, ${covered.questions.length} questions` });
+  const schedule = buildSchedule(requirements, questions, days);
+  onProgress({ step: "schedule", status: "done", detail: `${schedule.days.length} days, ${questions.length} questions` });
 
   let companyUrl = company_url;
   try {
@@ -134,7 +135,8 @@ async function run({ jd, company_url, days }: PipelineInput, outer: PipelineDeps
     },
     company_brief: brief,
     role: { title: x.title, seniority: x.seniority, responsibilities: x.responsibilities, requirements },
-    questions: covered.questions,
+    questions,
+    id_seq: { q: questions.length, f: cards.flashcards.length },
     flashcards: cards.flashcards,
     schedule,
     coverage: covered.coverage,

@@ -85,7 +85,7 @@ export function postProcess(raw: z.infer<typeof DraftSchema>["questions"], categ
     }));
 }
 
-function userPrompt(job: QuestionJob, ctx: QuestionContext, gap: boolean): string {
+function userPrompt(job: QuestionJob, ctx: QuestionContext, gap: boolean, avoid: string[]): string {
   const reqs = ctx.requirements.filter((r) => job.requirementIds.includes(r.id));
   const reqLines = reqs.map((r) => `${r.id} [${r.priority}, ${r.kind}] ${r.text} — evidence: "${r.evidence}"`).join("\n");
   const hiring = ctx.hiring && (ctx.hiring.stages.length || ctx.hiring.notes)
@@ -101,17 +101,24 @@ function userPrompt(job: QuestionJob, ctx: QuestionContext, gap: boolean): strin
     ...(job.category === "company-fit" && ctx.brief
       ? [`Company brief:\n${untrusted("company_brief", `${ctx.brief.summary}\n${ctx.brief.what_they_do}`, 2000)}`]
       : []),
+    // Kept questions (user-written or edited): untrusted, since users write them.
+    ...(avoid.length
+      ? [`Existing questions that stay in the kit; do not duplicate them:\n${untrusted("existing_questions", avoid.map((p) => `- ${p}`).join("\n"), 4000)}`]
+      : []),
     ...(job.guidance.length ? [`Guidance:\n${job.guidance.map((g) => `- ${g}`).join("\n")}`] : []),
     task,
   ].join("\n\n");
 }
 
-/** One LLM call for one job. `gap` switches to the coverage loop's one-question-per-requirement instruction. */
+/**
+ * One LLM call for one job. `gap` switches to the coverage loop's one-question-per-requirement instruction;
+ * `avoid` lists prompts of questions that stay in the kit, so they aren't duplicated.
+ */
 export async function generateQuestions(
   job: QuestionJob,
   ctx: QuestionContext,
   deps: Pick<PipelineDeps, "llm" | "now" | "onProgress">,
-  { gap = false } = {},
+  { gap = false, avoid = [] as string[] } = {},
 ): Promise<DraftQuestion[]> {
   const label = `${gap ? "gap" : "questions"}:${job.category}`;
   return traced(
@@ -121,7 +128,7 @@ export async function generateQuestions(
       const res = await generateJson(deps.llm, {
         label,
         system: SYSTEMS[job.category],
-        user: userPrompt(job, ctx, gap),
+        user: userPrompt(job, ctx, gap, avoid),
         schema: DraftSchema,
         temperature: 0.3,
         maxTokens: MAX_TOKENS.questionBatch,
