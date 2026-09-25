@@ -1,1 +1,138 @@
 @import "tailwindcss";
+
+/* A study desk: graphite on cool paper, one highlighter. */
+:root {
+  --c-paper: #f5f6f3;
+  --c-sheet: #ffffff;
+  --c-graphite: #25282d;
+  --c-pencil: #686d75;
+  --c-highlight: #f3dd4e;
+  --c-on-highlight: #25282d;
+  --c-ink-green: #2e6a50;
+  --c-alert: #a8322a;
+  --c-on-graphite: #ffffff;
+  --c-focus: #25282d;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-paper: #1d1f22;
+    --c-sheet: #26292d;
+    --c-graphite: #e7e5e0;
+    --c-pencil: #9a9ea5;
+    --c-highlight: #d9c443;
+    --c-on-highlight: #25282d;
+    --c-ink-green: #6db290;
+    --c-alert: #e0766d;
+    --c-on-graphite: #1d1f22;
+    --c-focus: #d9c443;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-*: initial;
+  --color-paper: var(--c-paper);
+  --color-sheet: var(--c-sheet);
+  --color-graphite: var(--c-graphite);
+  --color-pencil: var(--c-pencil);
+  --color-highlight: var(--c-highlight);
+  --color-on-highlight: var(--c-on-highlight);
+  --color-ink-green: var(--c-ink-green);
+  --color-alert: var(--c-alert);
+  --color-on-graphite: var(--c-on-graphite);
+  --color-line: color-mix(in srgb, var(--c-pencil) 20%, transparent);
+  --color-wash: color-mix(in srgb, var(--c-pencil) 8%, transparent);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --font-sans: var(--font-atkinson), "Atkinson Hyperlegible", system-ui, sans-serif;
+
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.55;
+  --text-base: 1rem;
+  --text-base--line-height: 1.55;
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.15;
+  --text-h2: 1.563rem;
+  --text-h2--line-height: 1.15;
+  --text-h1: 2.441rem;
+  --text-h1--line-height: 1.15;
+
+  --radius-sm: 2px;
+  --radius: 4px;
+  --radius-pill: 999px;
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+    color: var(--color-graphite);
+    font-family: var(--font-sans);
+    line-height: 1.55;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1, h2, h3 {
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  h1 { font-size: var(--text-h1); }
+  h2 { font-size: var(--text-h2); }
+  h3 { font-size: var(--text-h3); font-weight: 600; }
+  p, li, dd { max-width: 70ch; }
+  a { text-underline-offset: 3px; }
+  :focus-visible {
+    outline: 2px solid var(--c-focus);
+    outline-offset: 2px;
+  }
+  button:not(:disabled), summary { cursor: pointer; }
+}
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-graphite);
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    background: var(--color-graphite);
+    color: var(--color-on-graphite);
+  }
+  .btn:hover:not(:disabled) { text-decoration: underline; }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-quiet {
+    background: transparent;
+    color: var(--color-graphite);
+    border-color: var(--color-line);
+  }
+  .btn-quiet:hover:not(:disabled) { background: var(--color-wash); }
+  .btn-danger { background: transparent; color: var(--color-alert); border-color: var(--color-alert); }
+  .field {
+    width: 100%;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-line);
+    background: var(--color-sheet);
+    padding: 0.5rem 0.75rem;
+  }
+  .field[aria-invalid="true"] { border-color: var(--color-alert); }
+  .link { text-decoration: underline; }
+  .link:hover { text-decoration-thickness: 2px; }
+  .notice {
+    border-left: 4px solid var(--color-graphite);
+    background: var(--color-wash);
+    padding: 0.75rem 1rem;
+  }
+  .skeleton { background: var(--color-wash); border-radius: var(--radius); }
+}
+
+/* The one non-user-triggered motion: a check drawn when a generation step finishes. */
+@keyframes draw { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+.check-draw path { stroke-dasharray: 24; animation: draw 400ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
