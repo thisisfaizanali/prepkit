@@ -31,6 +31,15 @@ const EnvSchema = z.object({
   // The batch grader serves fixture sites from localhost, so private URLs are allowed outside production.
   // In production they must be blocked (SSRF: cloud metadata, internal services).
   TAVILY_API_KEY: optionalString,
+  // API server only (evaluate doesn't need Mongo). The database is selected by name, not from the URI path.
+  MONGODB_URI: optionalString,
+  MONGODB_DB: z.string().default("prepkit"),
+  // Comma-separated DNS servers for Node's resolver. Only for machines whose system resolver refuses the SRV
+  // lookups mongodb+srv:// needs (querySrv ECONNREFUSED); leave unset elsewhere.
+  DNS_SERVERS: optionalString,
+  PORT: positiveInt(4000),
+  // Set only if the web app is served from another origin; normally Next rewrites make the API same-origin.
+  WEB_ORIGIN: optionalString,
   ALLOW_PRIVATE_URLS: z.preprocess(
     (v) => (v === undefined || v === "" ? process.env.NODE_ENV !== "production" : v === "true" || v === "1"),
     z.boolean(),
