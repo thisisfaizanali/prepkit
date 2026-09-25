@@ -3,8 +3,8 @@ import { extractContent } from "../../retrieval/clean.ts";
 import { makeScope, type CrawlPage, type CrawlResult } from "../../retrieval/crawl.ts";
 import { RetrievalError } from "../../retrieval/errors.ts";
 import { HIRING_CONTENT_THRESHOLD, scorePageContent } from "../../retrieval/rankLinks.ts";
-import type { SearchResult } from "../../retrieval/search.ts";
-import { normalizeCompanyUrl } from "../../retrieval/urlGuard.ts";
+import type { SearchOutcome, SearchResult } from "../../retrieval/search.ts";
+import { isBlockedAddress, normalizeCompanyUrl } from "../../retrieval/urlGuard.ts";
 import { traced, type PipelineDeps } from "../trace.ts";
 import { extractRequirements, type ExtractionResult } from "./extractRequirements.ts";
 
@@ -22,13 +22,17 @@ export type ResearchResult = {
   pages: SitePage[];
   hiringPages: HiringPage[];
   /** Third-party (out-of-scope) search results about interviewing at the company. */
-  discussion: SearchResult[];
+  discussion: DiscussionResult[];
   skipped: { source: string; reason: string }[];
   hiringPageFound: boolean;
   warnings: string[];
 };
 
+/** A search result plus whether it may feed the hiring-process summary. */
+export type DiscussionResult = SearchResult & { usedForSummary: boolean };
+
 const GENERIC_TITLES = new Set(["home", "homepage", "welcome", "index"]);
+const UNKNOWN_NAME_REASON = "company name unknown — public search skipped to avoid attributing results to the wrong organisation";
 
 /** extraction.company → og:site_name → first segment of the home <title> → hostname label. */
 export function resolveCompanyName(
@@ -44,15 +48,33 @@ export function resolveCompanyName(
     .find(Boolean);
   if (segment && !GENERIC_TITLES.has(segment.toLowerCase())) return { name: segment, source: "page_title" };
 
-  let host: string;
+  // Last resort: the hostname label. localhost / IP literals say nothing about the company → unknown ("").
+  let host = "";
   try {
     host = normalizeCompanyUrl(companyUrl).hostname.replace(/^www\./, "");
   } catch {
-    host = companyUrl;
+    // unparseable URL → unknown
   }
   const labels = host.split(".");
-  const label = isIP(host.replace(/^\[|\]$/g, "")) || labels.length < 2 ? host : labels[labels.length - 2];
+  if (!host || isLocalHost(host) || labels.length < 2) return { name: "", source: "hostname" };
+  const label = labels[labels.length - 2];
   return { name: label.charAt(0).toUpperCase() + label.slice(1), source: "hostname" };
+}
+
+/** localhost, *.localhost, or an IP literal. */
+function isLocalHost(hostname: string): boolean {
+  const h = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  return h === "localhost" || h.endsWith(".localhost") || isIP(h) !== 0;
+}
+
+/** Company URL on a loopback / private / local address (e.g. a grader's fixture server). */
+function isPrivateCompanyUrl(companyUrl: string): boolean {
+  try {
+    const h = normalizeCompanyUrl(companyUrl).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    return h === "localhost" || h.endsWith(".localhost") || (isIP(h) !== 0 && isBlockedAddress(h));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -90,17 +112,30 @@ async function gatherResearch(companyUrl: string, extraction: ExtractionResult, 
     .filter((p) => p.kind === "hiring")
     .map(({ url, title, text, contentScore }) => ({ url, title, text, contentScore, origin: "crawl" }));
 
-  const search = await traced(
-    deps,
-    "search",
-    () => deps.search({ companyName, companyUrl, roleTitle: extraction.extraction.title || undefined }),
-    (s) => ({ detail: s.skipped ? `skipped: ${s.skipped}` : `${s.results.length} results for ${s.queries.length} queries` }),
-  );
+  // A name guessed from the hostname (or none at all) could belong to anyone: don't search the web with it.
+  const nameUnknown = companyNameSource === "hostname" || !companyName;
+  let search: SearchOutcome;
+  if (nameUnknown) {
+    search = { results: [], queries: [], skipped: UNKNOWN_NAME_REASON };
+    deps.onProgress({ step: "search", status: "skipped", detail: UNKNOWN_NAME_REASON });
+  } else {
+    search = await traced(
+      deps,
+      "search",
+      () => deps.search({ companyName, companyUrl, roleTitle: extraction.extraction.title || undefined }),
+      (s) => ({ detail: s.skipped ? `skipped: ${s.skipped}` : `${s.results.length} results for ${s.queries.length} queries` }),
+    );
+  }
   if (search.skipped) skipped.push({ source: "search", reason: search.skipped });
 
   const inScope = home ? makeScope(new URL(home.url)) : () => false;
   const companyOwned = search.results.filter((r) => safeUrl(r.url) && inScope(new URL(r.url)));
-  const discussion = search.results.filter((r) => !companyOwned.includes(r));
+  // For a private/local company URL, a name-only match can't be confirmed to be about this company:
+  // keep it visible in research, but out of the hiring-process summary.
+  const privateUrl = isPrivateCompanyUrl(companyUrl);
+  const discussion: DiscussionResult[] = search.results
+    .filter((r) => !companyOwned.includes(r))
+    .map((r) => ({ ...r, usedForSummary: !(privateUrl && r.attribution === "name") }));
 
   // Search-assisted hiring discovery: the crawl may miss a hiring page the search engine knows about.
   if (hiringPages.length === 0 && crawl.reachable) {
@@ -143,8 +178,13 @@ async function gatherResearch(companyUrl: string, extraction: ExtractionResult, 
     if (!pages.some((p) => p.kind === "about")) warnings.push("No about page was found on the company site.");
     if (hiringPages.length === 0) warnings.push("No published hiring or interview process was found on the company site.");
   }
-  if (discussion.length === 0) {
+  if (nameUnknown) {
+    warnings.push("The company name could not be determined, so public interview discussion was not searched (to avoid attributing results to the wrong organisation).");
+  } else if (discussion.length === 0) {
     warnings.push(`No public interview discussion was found${search.skipped ? ` (${search.skipped})` : ""}.`);
+  }
+  if (discussion.some((d) => !d.usedForSummary)) {
+    warnings.push("Public discussion matched only by company name; not used because it can't be confirmed to be about this company.");
   }
 
   return {

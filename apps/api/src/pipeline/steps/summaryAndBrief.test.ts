@@ -5,7 +5,7 @@ import type { SitePage } from "./research.ts";
 import { summarizeHiringProcess } from "./summarizeHiringProcess.ts";
 
 const hiringPage = { url: "https://acme.test/how-we-hire", title: "How we hire", text: "Recruiter screen, take-home, onsite.", contentScore: 3, origin: "crawl" as const };
-const post = { url: "https://forum.test/acme", title: "Acme interview", content: "Had a system design round at Acme." };
+const post = { url: "https://forum.test/acme", title: "Acme interview", content: "Had a system design round at Acme.", attribution: "name" as const, usedForSummary: true };
 
 describe("summarizeHiringProcess", () => {
   it("returns null with zero LLM calls when nothing was found", async () => {
@@ -16,17 +16,19 @@ describe("summarizeHiringProcess", () => {
     expect(deps.events).toEqual([expect.objectContaining({ step: "summarize_hiring_process", status: "skipped" })]);
   });
 
-  it("maps used source numbers to URLs in code, ignoring invalid ones", async () => {
+  it("sources = every URL whose text was passed in (set in code); excluded discussion is not passed", async () => {
     const llm = fakeLLM({
       summarize_hiring_process: {
         stages: [{ name: "Recruiter screen", description: "30 min" }],
         signals: { take_home: true, system_design: true },
         notes: "",
-        used_sources: [2, 1, 1, 7],
+        sources: ["https://invented.test"],
       },
     });
-    const s = await summarizeHiringProcess({ hiringPages: [hiringPage], discussion: [post], companyName: "Acme" }, fakeDeps({ llm }));
+    const excluded = { ...post, url: "https://forum.test/other", usedForSummary: false };
+    const s = await summarizeHiringProcess({ hiringPages: [hiringPage], discussion: [post, excluded], companyName: "Acme" }, fakeDeps({ llm }));
     expect(s!.sources).toEqual([hiringPage.url, post.url]);
+    expect(llm.calls[0].user).not.toContain("forum.test/other");
     expect(s!.signals).toEqual({ take_home: true, system_design: true, pair_programming: false, live_coding: false, behavioural: false, culture_values: false });
     expect(llm.calls[0].user).toContain('source="source 1 (official): https://acme.test/how-we-hire"');
     expect(llm.calls[0].user).toContain('source="source 2 (third_party): https://forum.test/acme"');

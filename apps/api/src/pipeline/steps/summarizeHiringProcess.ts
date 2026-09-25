@@ -21,11 +21,10 @@ const SummarySchema = z.object({
     })
     .default({ take_home: false, system_design: false, pair_programming: false, live_coding: false, behavioural: false, culture_values: false }),
   notes: z.string().default(""),
-  used_sources: z.array(z.number().int()).default([]),
 });
 
-export type HiringProcessSummary = Omit<z.infer<typeof SummarySchema>, "used_sources"> & {
-  /** URLs of the sources the summary drew on (mapped from source numbers in code). */
+export type HiringProcessSummary = z.infer<typeof SummarySchema> & {
+  /** Every source URL whose text was given to the model (set in code, never model-written). */
   sources: string[];
 };
 
@@ -41,8 +40,7 @@ Return a JSON object:
     "take_home": boolean, "system_design": boolean, "pair_programming": boolean,
     "live_coding": boolean, "behavioural": boolean, "culture_values": boolean
   },
-  "notes": string,          // other useful facts stated in the sources (timeline, format, tips); "" if none
-  "used_sources": number[]  // the source numbers you actually used
+  "notes": string           // other useful facts stated in the sources (timeline, format, tips); "" if none
 }
 
 Rules:
@@ -56,9 +54,10 @@ export async function summarizeHiringProcess(
   research: Pick<ResearchResult, "hiringPages" | "discussion" | "companyName">,
   deps: Pick<PipelineDeps, "llm" | "now" | "onProgress">,
 ): Promise<HiringProcessSummary | null> {
-  const { hiringPages, discussion } = research;
+  const { hiringPages } = research;
+  const discussion = research.discussion.filter((d) => d.usedForSummary);
   if (hiringPages.length === 0 && discussion.length === 0) {
-    deps.onProgress({ step: "summarize_hiring_process", status: "skipped", detail: "no hiring pages or public discussion found" });
+    deps.onProgress({ step: "summarize_hiring_process", status: "skipped", detail: "no hiring pages or usable public discussion" });
     return null;
   }
 
@@ -77,9 +76,7 @@ export async function summarizeHiringProcess(
     async () => {
       const label = "summarize_hiring_process";
       const res = await generateJson(deps.llm, { label, system: SYSTEM, user, schema: SummarySchema, temperature: 0.2, maxTokens: 2500 });
-      const { used_sources, ...summary } = res.data;
-      const used = [...new Set(used_sources)].filter((n) => n >= 1 && n <= sources.length).sort((a, b) => a - b);
-      return { summary: { ...summary, sources: used.map((n) => sources[n - 1].url) }, llm: llmInfo(label, res) };
+      return { summary: { ...res.data, sources: sources.map((s) => s.url) }, llm: llmInfo(label, res) };
     },
     (r) => ({ detail: `${r.summary.stages.length} stages from ${sources.length} sources`, llm: r.llm }),
   ).then((r) => r.summary);

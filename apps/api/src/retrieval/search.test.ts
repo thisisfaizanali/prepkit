@@ -39,6 +39,38 @@ describe("searchInterviewDiscussion", () => {
     expect(f.bodies[0]).toEqual({ query: '"Acme" interview process', search_depth: "basic", max_results: 5 });
   });
 
+  it("company name must match as a whole word: 'Acme' doesn't match 'Acmeville'", async () => {
+    const f = fakeFetch(
+      json({
+        results: [
+          { url: "https://a.test/1", title: "Acmeville interview tips", content: "Acmeville is a town" },
+          { url: "https://a.test/2", title: "Interviewing at acme.", content: "" },
+          { url: "https://a.test/3", title: "x", content: "My (Acme) onsite" },
+        ],
+      }),
+    );
+    const r = await searchInterviewDiscussion({ ...input, roleTitle: undefined }, deps(f.fetch));
+    expect(r.results.map((x) => x.url)).toEqual(["https://a.test/2", "https://a.test/3"]);
+  });
+
+  it("attribution: domain when on the company's domain or mentioning its hostname, else name", async () => {
+    const f = fakeFetch(
+      json({
+        results: [
+          { url: "https://jobs.acme.test/process", title: "Acme hiring", content: "" },
+          { url: "https://forum.test/1", title: "Acme interview", content: "see acme.test/careers" },
+          { url: "https://forum.test/2", title: "Acme interview", content: "no link" },
+        ],
+      }),
+    );
+    const r = await searchInterviewDiscussion({ ...input, roleTitle: undefined }, deps(f.fetch));
+    expect(r.results.map((x) => x.attribution)).toEqual(["domain", "domain", "name"]);
+
+    const local = fakeFetch(json({ results: [{ url: "https://forum.test/3", title: "Acme", content: "localhost 127.0.0.1" }] }));
+    const l = await searchInterviewDiscussion({ ...input, companyUrl: "http://127.0.0.1:8080/acme/", roleTitle: undefined }, deps(local.fetch));
+    expect(l.results[0].attribution).toBe("name");
+  });
+
   it("no key → skipped", async () => {
     expect(await searchInterviewDiscussion(input, { apiKey: "" })).toMatchObject({ results: [], skipped: "TAVILY_API_KEY not set" });
   });
