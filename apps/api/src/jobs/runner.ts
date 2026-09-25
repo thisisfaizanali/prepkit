@@ -56,25 +56,37 @@ export class JobRunner implements JobQueue {
     const now = this.opts.now ?? Date.now;
     await this.kits.update(id, { status: "running", progress: [], error: null, startedAt: new Date(now()) });
 
-    // Progress goes to the DB at most once per interval (in order); the final state is always written below.
+    // Progress goes to the DB at most once per interval (in order). Events that land inside the interval are flushed
+    // when it ends, so a step that starts just after another is never hidden until some later event arrives.
+    // The final state is always written below.
     const interval = this.opts.progressIntervalMs ?? 1000;
     const progress: ProgressEvent[] = [];
     let lastWrite = 0;
     let writes = Promise.resolve();
-    const onProgress = (e: ProgressEvent) => {
-      progress.push(e);
-      if (now() - lastWrite < interval) return;
+    let trailing: NodeJS.Timeout | undefined;
+    const flush = () => {
+      trailing = undefined;
       lastWrite = now();
       const snapshot = [...progress];
       writes = writes.then(() => this.kits.update(id, { progress: snapshot })).catch((err) => console.error(`job ${id}: progress write failed`, err));
     };
+    const onProgress = (e: ProgressEvent) => {
+      progress.push(e);
+      const wait = interval - (now() - lastWrite);
+      if (wait <= 0) flush();
+      else trailing ??= setTimeout(flush, wait);
+    };
+    const settle = async () => {
+      clearTimeout(trailing);
+      await writes;
+    };
 
     try {
       const result = await this.run(doc.input, onProgress);
-      await writes;
+      await settle();
       await this.kits.update(id, { status: "done", kit: result.kit as Kit, researchCache: result.researchCache, version: 1, progress, error: null });
     } catch (e) {
-      await writes;
+      await settle();
       if (!(e instanceof PipelineError)) console.error(`job ${id}: unexpected failure`, e);
       const error = e instanceof PipelineError ? { code: e.code, message: e.message } : { code: "INTERNAL", message: "Unexpected error while generating the kit" };
       await this.kits.update(id, { status: "failed", progress, error });

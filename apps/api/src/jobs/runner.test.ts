@@ -35,4 +35,25 @@ describe("JobRunner", () => {
     expect((await repos.kits.getById("a"))!.progress).toHaveLength(20); // final write has everything
     expect(peak).toBe(2);
   });
+
+  it("flushes events that arrived inside the interval once it ends", async () => {
+    const repos = createMemoryRepos();
+    const writes: number[] = [];
+    const update = repos.kits.update.bind(repos.kits);
+    repos.kits.update = async (id, patch) => {
+      if (patch.progress && !patch.status) writes.push(patch.progress.length);
+      return update(id, patch);
+    };
+    const run: RunFn = async (input, onProgress) => {
+      onProgress({ step: "crawl", status: "started" });
+      onProgress({ step: "extract_requirements", status: "started" }); // throttled, then flushed
+      await new Promise((r) => setTimeout(r, 80));
+      return fakeRun(input, () => {});
+    };
+    await repos.kits.insert(doc("a", "queued"));
+    const runner = new JobRunner(repos.kits, run, { progressIntervalMs: 20 });
+    runner.enqueue("a");
+    await runner.idle();
+    expect(writes).toEqual([1, 2]);
+  });
 });
