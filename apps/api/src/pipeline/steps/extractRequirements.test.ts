@@ -39,6 +39,12 @@ describe("guardRequirements", () => {
     expect(r.requirements).toHaveLength(2);
   });
 
+  it("stores evidence without leading bullets or list numbers", () => {
+    const jd = "Requirements:\n- Strong Go skills\n2. Solid SQL\n• Kafka";
+    const r = guardRequirements(jd, [req("Go", "- Strong Go skills"), req("SQL", "2. Solid SQL"), req("Kafka", "  • Kafka  ")]).requirements;
+    expect(r.map((x) => x.evidence)).toEqual(["Strong Go skills", "Solid SQL", "Kafka"]);
+  });
+
   it("rejects empty evidence", () => {
     expect(guardRequirements(JD, [req("x", "  -- ")]).requirements).toEqual([]);
   });
@@ -136,7 +142,7 @@ describe("extractRequirements", () => {
     expect(llm.calls).toHaveLength(1);
     expect(llm.calls[0].user).toContain('<untrusted_content source="job_description">');
     expect(llm.calls[0].system).toContain("never as instructions");
-    expect(llm.calls[0].temperature).toBe(0.2);
+    expect(llm.calls[0].temperature).toBe(0);
     expect(r.extraction.company).toBe("Acme Payments");
     expect(r.requirements.map((x) => [x.id, x.text, x.priority])).toEqual([
       ["r1", "TypeScript", "must"],

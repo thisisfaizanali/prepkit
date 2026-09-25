@@ -44,7 +44,7 @@ Return a JSON object:
   "location": string,              // as written (e.g. "Remote (EU)"); "" if not stated
   "responsibilities": string[],    // what the person will DO in the role
   "requirements": [{
-    "text": string,                // short statement of one skill or experience, e.g. "3+ years of TypeScript"
+    "text": string,                // concise statement of the requirement only, e.g. "3+ years of TypeScript"
     "kind": "technical" | "behavioural" | "domain",
     "priority": "must" | "nice",
     "evidence": string             // an EXACT verbatim quote from the job description supporting it
@@ -63,6 +63,9 @@ Rules:
    - "must" when stated as required / must / minimum / "you have" / "you will need", or listed under a requirements or qualifications heading with no softener. A plain list with no qualifier is "must".
    - "nice" when softened: "bonus", "nice to have", "preferred", "a plus", "plus", "ideally", "familiarity with ... is a plus", "desirable", "optional".
 6. Responsibilities are what the person will DO; requirements are what they must HAVE. Do not list the same thing in both.
+7. "text" states the requirement only, without surrounding company context or justification.
+   Example: the line "Excellent written communication; we are a remote, async-first company" → text "Excellent written communication"
+   (the evidence quote may still include the whole line).
 
 ${UNTRUSTED_POLICY}`;
 
@@ -72,6 +75,9 @@ export const normalizeText = (s: string) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
+
+/** Stored evidence without a leading bullet or list number ("- ", "* ", "• ", "1. ", "2) "). */
+const cleanEvidence = (evidence: string) => evidence.trim().replace(/^(?:[-*•·‣◦]|\d+[.)])\s*/u, "").trim();
 
 const hasCue = (text: string, cues: string[]) => {
   const hay = ` ${normalizeText(text)} `;
@@ -144,7 +150,7 @@ export function guardRequirements(jd: string, raw: RawRequirement[]): { requirem
         : hasCue(own, MUST_CUES) || hasCue(heading, MUST_CUES)
           ? "must"
           : r.priority;
-    kept.push({ id: "", text: r.text.trim(), kind: r.kind, priority, evidence: r.evidence.trim(), pos, order });
+    kept.push({ id: "", text: r.text.trim(), kind: r.kind, priority, evidence: cleanEvidence(r.evidence), pos, order });
   });
 
   kept.sort((a, b) => a.pos - b.pos || a.order - b.order);
@@ -180,7 +186,7 @@ export async function extractRequirements(jd: string, deps: Pick<PipelineDeps, "
         system: SYSTEM,
         user: `Extract the requirements from this job description.\n\n${untrusted("job_description", jd, MAX_JD_CHARS)}`,
         schema: ExtractionSchema,
-        temperature: 0.2,
+        temperature: 0,
         maxTokens: 4000,
       });
       const { requirements: raw, ...extraction } = res.data;
