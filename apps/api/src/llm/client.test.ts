@@ -79,12 +79,50 @@ describe("LLMClient", () => {
     expect(t.sleeps).toEqual([7660]);
   });
 
-  it("503 ×5 on groq → falls back to gemini with a fallback event", async () => {
+  it("2 consecutive 503s → cooldown and fallback to gemini (not 5 attempts)", async () => {
     const t = setup({ "https://groq.test": Array.from({ length: 5 }, () => err(503)), "https://gemini.test": [ok()] });
     expect((await t.client.complete(req)).provider).toBe("gemini");
-    expect(t.calls.filter((c) => c.url.startsWith("https://groq.test"))).toHaveLength(5);
-    expect(t.sleeps).toEqual([1000, 2000, 4000, 8000]); // backoff, no sleep after the last attempt
+    expect(t.calls.filter((c) => c.url.startsWith("https://groq.test"))).toHaveLength(2);
+    expect(t.sleeps).toEqual([1000]);
+    expect(t.events).toContainEqual(expect.objectContaining({ type: "cooldown", provider: "groq", ms: 60_000 }));
     expect(t.events).toContainEqual(expect.objectContaining({ type: "fallback", from: "groq", to: "gemini" }));
+  });
+
+  it("a cooled-down provider is skipped for 60s, then used again", async () => {
+    const t = setup({ "https://groq.test": [err(503), err(503), ok("back")], "https://gemini.test": [ok(), ok()] });
+    await t.client.complete(req); // groq cools down, gemini serves
+    t.advance(30_000);
+    expect((await t.client.complete(req)).provider).toBe("gemini");
+    expect(t.calls.filter((c) => c.url.startsWith("https://groq.test"))).toHaveLength(2); // not tried again
+    expect(t.events).toContainEqual(expect.objectContaining({ type: "spillover", from: "groq", to: "gemini", reason: "cooldown" }));
+    t.advance(30_001);
+    expect((await t.client.complete(req)).provider).toBe("groq");
+  });
+
+  it("fast failover: non-503 retryable errors fail over after 2 attempts when an alternative exists", async () => {
+    const t = setup({ "https://groq.test": [err(500), err(502), ok()], "https://gemini.test": [ok()] });
+    expect((await t.client.complete(req)).provider).toBe("gemini");
+    expect(t.calls.filter((c) => c.url.startsWith("https://groq.test"))).toHaveLength(2);
+  });
+
+  it("the last available provider still gets the full 5 attempts", async () => {
+    const t = setup({ "https://groq.test": [err(503), err(503), err(503), err(503), ok("fifth")] }, [groq]);
+    expect((await t.client.complete(req)).text).toBe("fifth");
+    expect(t.sleeps).toEqual([1000, 2000, 4000, 8000]);
+  });
+
+  it("all providers cooling → the one whose cooldown ends first is tried", async () => {
+    const t = setup({
+      "https://groq.test": [err(503), err(503)],
+      "https://gemini.test": [err(503), err(503), err(503), err(503), err(503), ok("gemini back")],
+    });
+    await t.client.complete(req).catch(() => {}); // groq cools at t≈0; gemini (last) retries 5×, cools later
+    const e = t.events.filter((x) => x.type === "cooldown").map((x) => (x as { provider: string }).provider);
+    expect(e).toEqual(["groq", "gemini"]);
+    t.advance(1_000); // both still cooling; groq's ends first
+    const calls = t.calls.length;
+    await t.client.complete(req).catch(() => {});
+    expect(t.calls[calls].url).toContain("groq.test");
   });
 
   it("network errors are retried", async () => {

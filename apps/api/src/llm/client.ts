@@ -28,7 +28,8 @@ export type LLMEvent =
   | { type: "rate_limited"; provider: string; waitMs: number; label: string }
   | { type: "retry"; provider: string; attempt: number; reason: string; waitMs: number; label: string }
   | { type: "fallback"; from: string; to: string; reason: string; label: string }
-  | { type: "spillover"; from: string; to: string; waitMs: number; label: string };
+  | { type: "spillover"; from: string; to: string; reason: "pacing" | "cooldown"; waitMs: number; label: string }
+  | { type: "cooldown"; provider: string; ms: number; reason: string; label: string };
 
 export type CompleteRequest = {
   system: string;
@@ -55,6 +56,9 @@ const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 60_000;
 const MAX_WAIT_MS = 60_000; // longer than this = quota exhausted, move to next provider
 const SPILLOVER_WAIT_MS = 5_000; // primary would pace-wait longer than this → use the next provider instead
+const COOLDOWN_MS = 60_000; // skip a provider this long after it exhausts retries or is overloaded
+const OVERLOADED_STRIKES = 2; // consecutive 503s that put a provider on cooldown
+const FAST_FAILOVER_ATTEMPTS = 2; // attempts before failing over while a healthy alternative exists
 const BACKOFF_CAP_MS = 30_000;
 const DEFAULT_MAX_TOKENS = 1024;
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
@@ -122,6 +126,8 @@ export class LLMClient {
   private readonly timeoutMs: number;
   /** Per provider: requests started in the last 60s and the tokens each used (estimate until the real count is known). */
   private readonly windows = new Map<string, { at: number; tokens: number }[]>();
+  /** Provider name → time its cooldown ends. */
+  private readonly cooldowns = new Map<string, number>();
 
   constructor(private readonly deps: ClientDeps) {
     this.fetch = deps.fetch ?? globalThis.fetch;
@@ -140,7 +146,9 @@ export class LLMClient {
     const seen = new Set<LLMErrorCode>(); // every failure kind hit on any attempt, any provider
     const reasons: string[] = [];
     for (const [i, provider] of ordered.entries()) {
-      const outcome = await this.tryProvider(provider, req, seen);
+      // Fail over fast while a healthy alternative remains; the last available provider gets the full budget.
+      const hasAlternative = ordered.slice(i + 1).some((p) => !this.cooling(p));
+      const outcome = await this.tryProvider(provider, req, seen, hasAlternative ? FAST_FAILOVER_ATTEMPTS : MAX_ATTEMPTS);
       if ("text" in outcome) return outcome;
       reasons.push(`${provider.name}: ${outcome.reason}`);
       const next = ordered[i + 1];
@@ -161,6 +169,7 @@ export class LLMClient {
     provider: Provider,
     req: CompleteRequest,
     seen: Set<LLMErrorCode>,
+    maxAttempts: number,
   ): Promise<CompleteResult | Failure> {
     const estimate = estimateTokens(req);
     const maxTokens = req.maxTokens ?? DEFAULT_MAX_TOKENS;
@@ -177,7 +186,8 @@ export class LLMClient {
     });
 
     let failure: Failure = { code: "LLM_UNAVAILABLE", reason: "no attempt made" };
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let overloadedInARow = 0;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       await this.pace(provider, estimate, req.label);
       const slot = { at: this.now(), tokens: estimate };
       this.windowFor(provider).push(slot);
@@ -213,16 +223,23 @@ export class LLMClient {
         failure = { code: rateLimited ? "LLM_RATE_LIMITED" : "LLM_UNAVAILABLE", reason };
         seen.add(failure.code);
         waitMs = headerWaitMs(res.headers) ?? this.backoff(attempt);
+        overloadedInARow = res.status === 503 ? overloadedInARow + 1 : 0;
+        if (overloadedInARow === OVERLOADED_STRIKES) {
+          this.coolDown(provider, `${OVERLOADED_STRIKES} consecutive 503s`, req.label);
+          // Leave now if someone else can take the call; the last available provider keeps retrying.
+          if (maxAttempts < MAX_ATTEMPTS) return failure;
+        }
       } catch (err) {
         // Network error, timeout, or malformed success body.
         slot.tokens = 0;
+        overloadedInARow = 0;
         failure = { code: "LLM_UNAVAILABLE", reason: err instanceof Error ? `${err.name}: ${err.message}` : String(err) };
         seen.add(failure.code);
         waitMs = this.backoff(attempt);
       }
 
       if (waitMs > MAX_WAIT_MS) return { ...failure, reason: `${failure.reason} (wait ${waitMs}ms exceeds limit)` };
-      if (attempt === MAX_ATTEMPTS) break;
+      if (attempt === maxAttempts) break;
       this.emit(
         rateLimited
           ? { type: "rate_limited", provider: provider.name, waitMs, label: req.label }
@@ -230,7 +247,17 @@ export class LLMClient {
       );
       await this.sleep(waitMs);
     }
+    if (!this.cooling(provider)) this.coolDown(provider, `retries exhausted (${failure.reason.slice(0, 80)})`, req.label);
     return failure;
+  }
+
+  private cooling(provider: Provider): boolean {
+    return (this.cooldowns.get(provider.name) ?? 0) > this.now();
+  }
+
+  private coolDown(provider: Provider, reason: string, label: string): void {
+    this.cooldowns.set(provider.name, this.now() + COOLDOWN_MS);
+    this.emit({ type: "cooldown", provider: provider.name, ms: COOLDOWN_MS, reason, label });
   }
 
   private backoff(attempt: number): number {
@@ -238,17 +265,30 @@ export class LLMClient {
   }
 
   /**
-   * Put the provider that can serve now first: the first (in configured order) whose pacing wait is ≤ 5s,
+   * Put the provider that can serve now first: the first non-cooling one (in configured order) whose pacing wait is ≤ 5s,
    * else the one with the smallest wait. Error fallback then continues through the rest in order.
    */
   private spillover(providers: Provider[], req: CompleteRequest): Provider[] {
-    const estimate = estimateTokens(req);
-    const waits = providers.map((p) => this.waitMs(p, estimate));
-    let chosen = waits.findIndex((w) => w <= SPILLOVER_WAIT_MS);
-    if (chosen < 0) chosen = waits.indexOf(Math.min(...waits));
-    if (chosen === 0) return providers;
-    this.emit({ type: "spillover", from: providers[0].name, to: providers[chosen].name, waitMs: waits[0], label: req.label });
-    return [providers[chosen], ...providers.filter((_, i) => i !== chosen)];
+    // Cooled-down providers are skipped (kept last, for error fallback) unless all are cooling:
+    // then the one whose cooldown ends first goes first.
+    const active = providers.filter((p) => !this.cooling(p));
+    const cooling = providers.filter((p) => this.cooling(p)).sort((a, b) => this.cooldowns.get(a.name)! - this.cooldowns.get(b.name)!);
+    let ordered: Provider[];
+    if (active.length === 0) {
+      ordered = cooling;
+    } else {
+      const estimate = estimateTokens(req);
+      const waits = active.map((p) => this.waitMs(p, estimate));
+      let chosen = waits.findIndex((w) => w <= SPILLOVER_WAIT_MS);
+      if (chosen < 0) chosen = waits.indexOf(Math.min(...waits));
+      ordered = [active[chosen], ...active.filter((_, i) => i !== chosen), ...cooling];
+    }
+    if (ordered[0] !== providers[0]) {
+      const reason = this.cooling(providers[0]) ? "cooldown" : "pacing";
+      const waitMs = this.waitMs(providers[0], estimateTokens(req));
+      this.emit({ type: "spillover", from: providers[0].name, to: ordered[0].name, reason, waitMs, label: req.label });
+    }
+    return ordered;
   }
 
   /** How long until the provider's 60s window has room for one more request of `estimate` tokens. */
