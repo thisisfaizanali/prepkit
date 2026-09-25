@@ -1,4 +1,5 @@
 import type { KitView } from "@prepkit/shared";
+import { ScheduleRebuild } from "@/components/builder/ScheduleRebuild";
 import { plural } from "@/lib/format";
 
 export function ScheduleSection({ kit }: { kit: KitView }) {
@@ -9,6 +10,7 @@ export function ScheduleSection({ kit }: { kit: KitView }) {
     <div className="max-w-[760px]">
       <h2 className="text-h2">Schedule</h2>
       {kit.schedule_stale && <p className="notice mt-4">Questions changed since this schedule was built.</p>}
+      <ScheduleRebuild />
       <ol className="mt-6 border-l-2 border-line">
         {days.map((d) => (
           <li key={d.day} className="relative pb-8 pl-6">

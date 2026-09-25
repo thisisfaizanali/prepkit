@@ -1,4 +1,5 @@
 import type { KitView } from "@prepkit/shared";
+import { BriefEditor } from "@/components/builder/BriefEditor";
 import { ExternalLink } from "@/components/kit/ExternalLink";
 
 const SIGNALS: Record<string, string> = {
@@ -17,10 +18,7 @@ export function BriefSection({ kit }: { kit: KitView }) {
   return (
     <div className="max-w-[760px] space-y-8">
       <section>
-        <h2 className="text-h2">Company brief</h2>
-        <p className="mt-3">{brief.summary}</p>
-        <h3 className="mt-6 text-h3">What they do</h3>
-        <p className="mt-2">{brief.what_they_do}</p>
+        <BriefEditor />
         {brief.sources.length > 0 && (
           <>
             <h3 className="mt-6 text-h3">Sources</h3>

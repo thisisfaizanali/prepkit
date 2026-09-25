@@ -136,3 +136,21 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Builder: a quiet indeterminate line while a section regenerates (user-triggered). */
+@keyframes progress-line { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.progress-line { animation: progress-line 1.6s ease-in-out infinite; }
+
+/* Questions a regeneration just added: a highlighter edge that fades out. */
+@keyframes fresh-edge { from { border-left-color: var(--c-highlight); } to { border-left-color: transparent; } }
+.fresh-edge { border-left: 4px solid transparent; animation: fresh-edge 2s ease-out 0.3s both; }
+@media (prefers-reduced-motion: reduce) {
+  .fresh-edge { border-left-color: transparent; }
+}
+
+/* Drag target: the dragged question lands just above this row. */
+.drop-target { box-shadow: inset 0 2px 0 var(--c-graphite); }
+
+/* Drag target: the dragged item lands just above this row. */
+.drop-target { background: linear-gradient(var(--c-graphite), var(--c-graphite)) top / 100% 2px no-repeat; }
+.drop-after { background: linear-gradient(var(--c-graphite), var(--c-graphite)) bottom / 100% 2px no-repeat; }

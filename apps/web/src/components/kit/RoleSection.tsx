@@ -4,7 +4,7 @@ import type { KitRequirementView, KitView } from "@prepkit/shared";
 import { useMemo, useState } from "react";
 import { KindChip, PriorityMarker } from "@/components/kit/PriorityMarker";
 import { findSpan, indexJd, segmentJd } from "@/lib/evidence";
-import { plural } from "@/lib/format";
+import { CoveragePanel } from "@/components/builder/CoveragePanel";
 
 type Active = { id: string; from: "jd" | "list" } | null;
 
@@ -31,8 +31,6 @@ export function RoleSection({ kit, jd }: { kit: KitView; jd: string }) {
   };
   const clear = () => setActive(null);
 
-  const { uncovered_requirement_ids: uncovered, passes } = kit.coverage;
-  const covered = reqs.length - uncovered.length;
 
   return (
     <div className="space-y-8">
@@ -104,19 +102,7 @@ export function RoleSection({ kit, jd }: { kit: KitView; jd: string }) {
               />
             ))}
           </ul>
-          <p className="mt-6">
-            {covered} of {plural(reqs.length, "requirement")} covered in {plural(passes, "pass", "passes")}
-          </p>
-          {uncovered.length > 0 && (
-            <>
-              <p className="mt-2 text-pencil">Not yet covered by a question:</p>
-              <ul className="mt-1 list-disc pl-6">
-                {uncovered.map((id) => (
-                  <li key={id}>{reqs.find((r) => r.id === id)?.text ?? id}</li>
-                ))}
-              </ul>
-            </>
-          )}
+          <CoveragePanel />
         </div>
       </section>
     </div>

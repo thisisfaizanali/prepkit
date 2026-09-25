@@ -12,6 +12,11 @@ export const CrossIcon = ({ className }: P) => (
     <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
   </svg>
 );
+export const GripIcon = ({ className }: P) => (
+  <svg {...base} stroke="none" fill="currentColor" className={className}>
+    {[4, 8, 12].flatMap((y) => [6, 10].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r={1.25} />))}
+  </svg>
+);
 export const ExternalIcon = ({ className }: P) => (
   <svg {...base} strokeWidth={1.5} className={className}>
     <path d="M9 3h4v4M13 3L7 9M11 9.5V13H3V5h3.5" strokeLinecap="round" strokeLinejoin="round" />

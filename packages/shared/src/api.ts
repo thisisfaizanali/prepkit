@@ -38,6 +38,8 @@ export type Regeneration = {
   startedAt: string;
   finishedAt?: string;
   error?: { code: string; message: string };
+  /** Section-specific: questions → { generated, kept, … }, gaps → { passes, added, … }. */
+  summary?: unknown;
 };
 
 export type KitResponse = {

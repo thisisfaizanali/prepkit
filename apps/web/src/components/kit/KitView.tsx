@@ -12,6 +12,8 @@ import { SourcesSection } from "@/components/kit/SourcesSection";
 import { plural } from "@/lib/format";
 import { BuilderProvider, useBuilder } from "@/components/builder/BuilderContext";
 import { ToastProvider } from "@/components/builder/Toasts";
+import { RegenerationProvider } from "@/components/builder/Regeneration";
+import { SaveStatus } from "@/components/builder/SaveStatus";
 
 const TABS: TabDef[] = [
   { id: "brief", label: "Brief" },
@@ -27,9 +29,9 @@ function Section({ tab, kit, jd }: { tab: string; kit: Kit; jd: string }) {
     case "role":
       return <RoleSection kit={kit} jd={jd} />;
     case "questions":
-      return <QuestionsSection kit={kit} />;
+      return <QuestionsSection />;
     case "flashcards":
-      return <FlashcardsSection kit={kit} />;
+      return <FlashcardsSection />;
     case "schedule":
       return <ScheduleSection kit={kit} />;
     case "sources":
@@ -43,7 +45,9 @@ export function KitView({ doc }: { doc: KitResponse & { kit: Kit } }) {
   return (
     <ToastProvider>
       <BuilderProvider doc={doc}>
-        <Binder />
+        <RegenerationProvider>
+          <Binder />
+        </RegenerationProvider>
       </BuilderProvider>
     </ToastProvider>
   );
@@ -54,8 +58,13 @@ function Binder() {
   // The active tab lives in the URL hash, so a section can be linked to and survives a reload.
   const [tab, setTab] = useState("brief");
   useEffect(() => {
-    const h = location.hash.slice(1);
-    if (TABS.some((t) => t.id === h)) setTab(h);
+    const fromHash = () => {
+      const h = location.hash.slice(1);
+      if (TABS.some((t) => t.id === h)) setTab(h);
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
   }, []);
   const change = (id: string) => {
     setTab(id);
@@ -70,6 +79,9 @@ function Binder() {
           {kit.source.company}. Interview in {plural(doc.input.days, "day")}. {plural(kit.questions.length, "question")},{" "}
           {plural(kit.flashcards.length, "flashcard")}.
         </p>
+        <div className="mt-2">
+          <SaveStatus />
+        </div>
       </header>
       {kit.warnings && kit.warnings.length > 0 && (
         <aside aria-labelledby="warnings-heading" className="notice mt-6 max-w-[760px]">
