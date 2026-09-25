@@ -20,8 +20,13 @@ function Marker({ status, animate }: { status: StepStatus; animate: boolean }) {
   return <span aria-hidden className={box}><span className="size-2 rounded-full border border-pencil" /></span>;
 }
 
-/** `fresh`: keys of steps that finished while this page was open (only those get the drawn check). */
-export function StepList({ steps, fresh = new Set<string>() }: { steps: Step[]; fresh?: Set<string> }) {
+const NONE = new Set<string>();
+
+/**
+ * `fresh`: keys of steps that finished while this page was open (only those get the drawn check).
+ * `slow`: keys of running steps that have taken long enough to explain why.
+ */
+export function StepList({ steps, fresh = NONE, slow = NONE }: { steps: Step[]; fresh?: Set<string>; slow?: Set<string> }) {
   return (
     <ol className="space-y-3">
       {steps.map((s) => (
@@ -34,6 +39,9 @@ export function StepList({ steps, fresh = new Set<string>() }: { steps: Step[]; 
               {s.ms !== undefined && s.status !== "running" && <span className="ml-2 text-sm text-pencil">{formatDuration(s.ms)}</span>}
             </p>
             {s.detail && <p className="break-words text-sm text-pencil">{s.detail}</p>}
+            {s.status === "running" && slow.has(s.key) && (
+              <p className="text-sm text-pencil">Free-tier model limits can slow this step down. Still working.</p>
+            )}
           </div>
         </li>
       ))}

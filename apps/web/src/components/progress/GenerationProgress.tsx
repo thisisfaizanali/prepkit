@@ -36,7 +36,9 @@ export function GenerationProgress({ kit }: { kit: KitResponse }) {
   }, [steps]);
 
   const started = kit.startedAt ?? kit.createdAt;
-  const slow = steps.some((s) => s.status === "running" && now - (runningSince.current.get(s.key) ?? now) > SLOW_MS);
+  const slow = new Set(
+    steps.filter((s) => s.status === "running" && now - (runningSince.current.get(s.key) ?? now) > SLOW_MS).map((s) => s.key),
+  );
 
   return (
     <section aria-labelledby="progress-heading" className="max-w-2xl">
@@ -53,9 +55,8 @@ export function GenerationProgress({ kit }: { kit: KitResponse }) {
           Elapsed <span className="tabular-nums">{formatDuration(now - new Date(started).getTime())}</span>
         </p>
       )}
-      <div className="mt-6 min-h-[1.55rem] text-sm">{slow && <p>Free-tier model limits can slow this step down. Still working.</p>}</div>
-      <div className="mt-2">
-        <StepList steps={steps} fresh={fresh} />
+      <div className="mt-8">
+        <StepList steps={steps} fresh={fresh} slow={slow} />
       </div>
       <p aria-live="polite" className="sr-only">
         {announcement}

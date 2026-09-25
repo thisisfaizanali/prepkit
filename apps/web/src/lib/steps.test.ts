@@ -30,6 +30,14 @@ describe("deriveSteps", () => {
     expect(steps[0]).toMatchObject({ detail: "12 requirements", ms: 3000 });
   });
 
+  it("shows concurrent steps as running together (the real run's opening events)", () => {
+    const steps = deriveSteps([
+      { step: "crawl", status: "started" },
+      { step: "extract_requirements", status: "started" },
+    ]);
+    expect(steps.slice(0, 2).map((s) => s.status)).toEqual(["running", "running"]);
+  });
+
   it("shows placeholders before the run starts", () => {
     expect(deriveSteps([]).every((s) => s.status === "pending")).toBe(true);
   });
