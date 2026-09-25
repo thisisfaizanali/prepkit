@@ -86,6 +86,7 @@ function headerWaitMs(headers: Headers): number | undefined {
 
 const effort = (v: string) => (v === "off" ? undefined : v);
 
+/** Order: groq primary → groq secondary → gemini. */
 export function providersFromConfig(config: Config, only?: string): Provider[] {
   const all: Provider[] = [];
   if (config.GROQ_API_KEY) {
@@ -98,6 +99,17 @@ export function providersFromConfig(config: Config, only?: string): Provider[] {
       rpm: config.GROQ_RPM,
       reasoningEffort: effort(config.GROQ_REASONING_EFFORT),
     });
+    if (config.GROQ_SECONDARY_MODEL !== "off") {
+      all.push({
+        name: "groq-secondary",
+        baseUrl: "https://api.groq.com/openai/v1",
+        apiKey: config.GROQ_API_KEY,
+        model: config.GROQ_SECONDARY_MODEL,
+        tpm: config.GROQ_SECONDARY_TPM,
+        rpm: config.GROQ_SECONDARY_RPM,
+        reasoningEffort: effort(config.GROQ_REASONING_EFFORT),
+      });
+    }
   }
   if (config.GEMINI_API_KEY) {
     all.push({

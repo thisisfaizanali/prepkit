@@ -1,5 +1,6 @@
 import type { CompanyBrief } from "@prepkit/shared";
 import { z } from "zod";
+import { MAX_TOKENS } from "../../llm/budgets.ts";
 import { generateJson } from "../../llm/json.ts";
 import { untrusted, UNTRUSTED_POLICY } from "../../llm/untrusted.ts";
 import { llmInfo, traced, type PipelineDeps } from "../trace.ts";
@@ -89,7 +90,7 @@ export async function companyBrief(
           ...used.map((u) => untrusted(`${u.page.kind} page: ${u.page.url}`, u.text, PER_PAGE_CHARS)),
           ...(jdParagraph ? [untrusted("job description: company paragraph", jdParagraph, PARAGRAPH_CHARS)] : []),
         ].join("\n\n");
-        const res = await generateJson(deps.llm, { label, system: SYSTEM, user, schema: BriefSchema, temperature: 0.2, maxTokens: 1500 });
+        const res = await generateJson(deps.llm, { label, system: SYSTEM, user, schema: BriefSchema, temperature: 0.2, maxTokens: MAX_TOKENS.brief });
         const sources = [...used.map((u) => u.page.url), ...(jdParagraph ? ["job description"] : [])];
         return { brief: { ...res.data, sources, meta: { ...META } }, llm: llmInfo(label, res) };
       },
@@ -117,7 +118,7 @@ export async function companyBrief(
         user: untrusted("job description: company paragraph", jdParagraph, PARAGRAPH_CHARS),
         schema: WhatTheyDoSchema,
         temperature: 0.2,
-        maxTokens: 800,
+        maxTokens: MAX_TOKENS.brief,
       });
       return { brief: { summary, what_they_do: res.data.what_they_do, sources: ["job description"], meta: { ...META } }, llm: llmInfo(label, res) };
     },

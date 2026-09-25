@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LLMClient, LLMError, parseDuration, type LLMEvent, type Provider } from "./client.ts";
+import type { Config } from "../config.ts";
+import { LLMClient, LLMError, parseDuration, providersFromConfig, type LLMEvent, type Provider } from "./client.ts";
 
 const groq: Provider = { name: "groq", baseUrl: "https://groq.test", apiKey: "k1", model: "m1", tpm: 100_000, rpm: 1000 };
 const gemini: Provider = { name: "gemini", baseUrl: "https://gemini.test", apiKey: "k2", model: "m2", tpm: 100_000, rpm: 1000 };
@@ -45,6 +46,18 @@ describe("parseDuration", () => {
   ])("%s → %i ms", (input, ms) => expect(parseDuration(input)).toBe(ms));
 
   it("rejects garbage", () => expect(parseDuration("soon")).toBeUndefined());
+});
+
+describe("providersFromConfig", () => {
+  const cfg = { GROQ_API_KEY: "g", GEMINI_API_KEY: "m", GROQ_SECONDARY_MODEL: "openai/gpt-oss-20b", GROQ_REASONING_EFFORT: "low", GEMINI_REASONING_EFFORT: "low" } as Config;
+  it("orders groq primary → groq secondary → gemini; secondary shares the key", () => {
+    const p = providersFromConfig(cfg);
+    expect(p.map((x) => x.name)).toEqual(["groq", "groq-secondary", "gemini"]);
+    expect(p[1]).toMatchObject({ apiKey: "g", model: "openai/gpt-oss-20b" });
+  });
+  it('GROQ_SECONDARY_MODEL "off" disables the secondary', () => {
+    expect(providersFromConfig({ ...cfg, GROQ_SECONDARY_MODEL: "off" }).map((x) => x.name)).toEqual(["groq", "gemini"]);
+  });
 });
 
 describe("LLMClient", () => {

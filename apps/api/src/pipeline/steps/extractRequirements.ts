@@ -1,5 +1,6 @@
 import { PRIORITIES, REQUIREMENT_KINDS, type Requirement } from "@prepkit/shared";
 import { z } from "zod";
+import { MAX_TOKENS } from "../../llm/budgets.ts";
 import { generateJson } from "../../llm/json.ts";
 import { untrusted, UNTRUSTED_POLICY } from "../../llm/untrusted.ts";
 import { llmInfo, traced, type LLMCallInfo, type PipelineDeps } from "../trace.ts";
@@ -54,7 +55,8 @@ Return a JSON object:
 Rules:
 1. Extract ONLY requirements the text actually states. Never add skills that are typical, implied, or "usually expected" for the role. A short job description yields few requirements; that is correct, do not pad.
 2. "evidence" must be copied character-for-character from the job description: a phrase or a whole line. Do not paraphrase, summarise, fix typos, or combine separate lines.
-3. One requirement per distinct skill or experience. Split a compound line (e.g. "React and Node.js") only when it names clearly separate skills; each split requirement may reuse the same evidence quote.
+3. One requirement per distinct skill or experience. Split a compound line joined by "and" (e.g. "React and Node.js") only when it names clearly separate skills; each split requirement may reuse the same evidence quote.
+   NEVER split alternatives joined by "or", "or similar", or "/": "Python or Go", "AWS/GCP" and "Kafka or a similar queue" each stay ONE requirement (either option satisfies it).
 4. kind:
    - technical: tools, languages, frameworks, engineering practices and skills
    - behavioural: collaboration, mentoring, communication, leadership, ownership
@@ -187,7 +189,7 @@ export async function extractRequirements(jd: string, deps: Pick<PipelineDeps, "
         user: `Extract the requirements from this job description.\n\n${untrusted("job_description", jd, MAX_JD_CHARS)}`,
         schema: ExtractionSchema,
         temperature: 0,
-        maxTokens: 4000,
+        maxTokens: MAX_TOKENS.extraction,
       });
       const { requirements: raw, ...extraction } = res.data;
       const guarded = guardRequirements(jd, raw);

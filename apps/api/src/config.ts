@@ -15,9 +15,13 @@ const reasoningEffort = (fallback: "off" | "low" | "medium" | "high") =>
 const EnvSchema = z.object({
   GROQ_API_KEY: optionalString,
   GROQ_MODEL: z.string().default("openai/gpt-oss-120b"),
-  GROQ_TPM: positiveInt(6000),
+  GROQ_TPM: positiveInt(8000),
   GROQ_RPM: positiveInt(30),
   GROQ_REASONING_EFFORT: reasoningEffort("low"),
+  // Second Groq model on the same key: its own TPM/RPM window, so it absorbs calls while the primary paces. "off" disables it.
+  GROQ_SECONDARY_MODEL: z.string().default("openai/gpt-oss-20b"),
+  GROQ_SECONDARY_TPM: positiveInt(8000),
+  GROQ_SECONDARY_RPM: positiveInt(30),
   GEMINI_API_KEY: optionalString,
   GEMINI_MODEL: z.string().default("gemini-3.6-flash"),
   GEMINI_TPM: positiveInt(200000),
