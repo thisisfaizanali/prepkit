@@ -12,7 +12,10 @@ import type { SitePage } from "../pipeline/steps/research.ts";
 import type { HiringProcessSummary } from "../pipeline/steps/summarizeHiringProcess.ts";
 import type { PipelineDeps } from "../pipeline/trace.ts";
 
-export type RegenerateRequest = { section: "brief"; force?: boolean } | { section: "questions"; category: Question["category"] };
+export type RegenerateRequest =
+  | { section: "brief"; force?: boolean }
+  | { section: "questions"; category: Question["category"] }
+  | { section: "gaps" };
 export type GenerationDeps = Pick<PipelineDeps, "llm" | "now">;
 
 type StoredResearch = { hiring_process?: Pick<HiringProcessSummary, "stages" | "signals" | "notes"> | null };
@@ -110,6 +113,7 @@ export class Regenerator {
 
   private async run(userId: string, doc: KitDoc, req: RegenerateRequest, regeneration: Regeneration): Promise<void> {
     if (req.section === "brief") return this.brief(userId, doc, req.force ?? false, regeneration);
+    if (req.section === "gaps") return this.gaps(userId, doc, regeneration);
     return this.questions(userId, doc, req.category, regeneration);
   }
 
@@ -155,6 +159,26 @@ export class Regenerator {
       const merged = appendGenerated(mergeQuestionCategory(current, category, drafts), coverage.added);
       merged.coverage = { ...merged.coverage, passes: coverage.passes.length };
       const summary = { generated: drafts.length, kept: kept.length, coverage_added: coverage.added.length, passes: coverage.passes, warnings: coverage.warnings };
+      return { kit: merged, extra: { regeneration: this.done(regeneration, summary) } };
+    });
+  }
+
+  /**
+   * Close coverage gaps on the kit as it is now: targeted gap passes, then the deterministic fallback for must-haves.
+   * Only adds questions. summary.passes is the per-pass trace ("pass 1: r3 uncovered → pass 2: covered").
+   */
+  private async gaps(userId: string, doc: KitDoc, regeneration: Regeneration): Promise<void> {
+    const kit = doc.kit as BuilderKit;
+    const coverage = await coverageLoop(kit.questions, storedContext(kit).ctx, this.deps);
+    await updateKit(this.kits, userId, doc._id, (current) => {
+      const merged = appendGenerated(current, coverage.added);
+      merged.coverage = { ...merged.coverage, passes: coverage.passes.length };
+      const summary = {
+        passes: coverage.passes,
+        added: coverage.added.length,
+        fallback: coverage.added.filter((q) => q.fallback).length,
+        warnings: coverage.warnings,
+      };
       return { kit: merged, extra: { regeneration: this.done(regeneration, summary) } };
     });
   }

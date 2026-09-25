@@ -11,7 +11,7 @@ const OpsBody = z.object({ ops: z.array(OpSchema).min(1).max(200) });
 const IdParam = z.object({ id: z.string().min(1).max(100) });
 const RegenerateBody = z
   .object({
-    section: z.enum(["schedule", "brief", "questions"]),
+    section: z.enum(["schedule", "brief", "questions", "gaps"]),
     category: z.enum(QUESTION_CATEGORIES).optional(),
     days: z.number().int().min(1).max(90).optional(),
     force: z.boolean().optional(),
@@ -28,7 +28,7 @@ export function builderRouter({ kits, regen }: { kits: KitRepo; regen: Regenerat
     res.json(await updateKit(kits, currentUser(res)._id, id, (kit) => ({ kit: applyOps(kit, ops) })));
   });
 
-  // schedule: synchronous rebuild from the current questions. brief/questions: background job → 202, poll GET /:id.
+  // schedule: synchronous rebuild from the current questions. brief/questions/gaps: background job → 202, poll GET /:id.
   router.post("/:id/regenerate", async (req, res) => {
     const { id } = validate(IdParam, req.params);
     const b = validate(RegenerateBody, req.body);
@@ -41,7 +41,11 @@ export function builderRouter({ kits, regen }: { kits: KitRepo; regen: Regenerat
       );
       return;
     }
-    const regeneration = await regen.start(userId, id, b.section === "brief" ? { section: "brief", force: b.force } : { section: "questions", category: b.category! });
+    const regeneration = await regen.start(
+      userId,
+      id,
+      b.section === "brief" ? { section: "brief", force: b.force } : b.section === "gaps" ? { section: "gaps" } : { section: "questions", category: b.category! },
+    );
     res.status(202).json({ id, regeneration });
   });
 

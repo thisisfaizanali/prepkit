@@ -141,3 +141,37 @@ describe("POST /api/kits/:id/regenerate — brief and schedule", () => {
     expect(same.body.kit.schedule.days).toHaveLength(60); // defaults to the current days_available
   });
 });
+
+describe("POST /api/kits/:id/regenerate — gaps", () => {
+  it("delete every question covering must r1 → uncovered → regenerate gaps → covered; summary shows the passes", async () => {
+    const llm = scriptedLLM({});
+    const { a, id, kit, regen } = await setupBuilder({ llm });
+    const del = await a.patch(`/api/kits/${id}/ops`).send({ ops: [{ op: "question.delete", id: "q1" }, { op: "question.delete", id: "q3" }] }).expect(200);
+    expect(del.body.kit.coverage.uncovered_requirement_ids).toEqual(["r1"]);
+
+    const res = await a.post(`/api/kits/${id}/regenerate`).send({ section: "gaps" }).expect(202);
+    expect(res.body.regeneration).toMatchObject({ section: "gaps", status: "running" });
+    await regen!.idle();
+    const after = await kit();
+    expect(after.kit.coverage).toEqual({ uncovered_requirement_ids: [], passes: 2 });
+    expect(after.regeneration).toMatchObject({
+      status: "done",
+      summary: { passes: [{ pass: 1, uncovered: ["r1"] }, { pass: 2, uncovered: [] }], added: 1, fallback: 0 },
+    });
+    const added = after.kit.questions.find((q) => q.id === "q5")!;
+    expect(added).toMatchObject({ category: "technical", requirement_ids: ["r1"], meta: { origin: "generated" } });
+    expect(llm.calls.map((c) => c.label)).toEqual(["gap:technical"]);
+  });
+
+  it("the model never covers must r3 → deterministic fallback after 3 passes", async () => {
+    const llm = scriptedLLM({}, { skip: ["r3"] });
+    const { a, id, kit, regen } = await setupBuilder({ llm });
+    await a.patch(`/api/kits/${id}/ops`).send({ ops: [{ op: "question.delete", id: "q4" }] }).expect(200);
+    await a.post(`/api/kits/${id}/regenerate`).send({ section: "gaps" }).expect(202);
+    await regen!.idle();
+    const after = await kit();
+    expect(after.kit.coverage).toEqual({ uncovered_requirement_ids: [], passes: 3 });
+    expect(after.regeneration).toMatchObject({ summary: { fallback: 1, passes: [{ uncovered: ["r3"] }, { uncovered: ["r3"] }, { uncovered: ["r3"] }] } });
+    expect(after.kit.questions.find((q) => (q as { fallback?: boolean }).fallback)).toMatchObject({ category: "behavioural", requirement_ids: ["r3"] });
+  });
+});
