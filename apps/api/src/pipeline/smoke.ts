@@ -60,6 +60,9 @@ console.log(`\n== WARNINGS`);
 for (const w of [...extraction.warnings, ...research.warnings]) console.log(`  - ${w}`);
 console.log(`\n== HIRING PAGES: ${research.hiringPages.map((p) => `${p.url} (${p.origin}, content=${p.contentScore})`).join(", ") || "none"}`);
 console.log(`== DISCUSSION: ${research.discussion.length} third-party result(s)`);
+for (const d of research.discussion) {
+  console.log(`  [${d.attribution}${d.usedForSummary ? "" : ", NOT used for summary"}] ${d.url}`);
+}
 if (hiring) {
   const on = Object.entries(hiring.signals).filter(([, v]) => v).map(([k]) => k);
   console.log(`== HIRING PROCESS: signals: ${on.join(", ") || "none"}`);
