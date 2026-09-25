@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ErrorState } from "@/components/ErrorState";
 import { FailurePanel } from "@/components/progress/FailurePanel";
 import { GenerationProgress } from "@/components/progress/GenerationProgress";
+import { KitView } from "@/components/kit/KitView";
 import { ApiError } from "@/lib/api";
 import { takeNotice } from "@/lib/notice";
 import { useKit } from "@/lib/queries";
@@ -43,7 +44,7 @@ export function KitPage({ id }: { id: string }) {
   } else if (kit.data.status !== "done" || !kit.data.kit) {
     body = <GenerationProgress kit={kit.data} />;
   } else {
-    body = <p>Kit ready.</p>;
+    body = <KitView doc={{ ...kit.data, kit: kit.data.kit }} />;
   }
 
   return (
