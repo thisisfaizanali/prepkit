@@ -12,6 +12,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:api": "npm run dev -w @prepkit/api",
     "evaluate": "tsx apps/api/src/scripts/evaluate.ts",
     "fixtures": "tsx examples/fixtures/serve.ts"
   },

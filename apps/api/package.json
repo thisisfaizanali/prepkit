@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "llm:smoke": "tsx src/llm/smoke.ts",
     "research:smoke": "tsx src/retrieval/smoke.ts",
