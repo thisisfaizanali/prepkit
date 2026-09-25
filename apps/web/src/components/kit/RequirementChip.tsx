@@ -1,20 +1,26 @@
 import type { KitRequirementView } from "@prepkit/shared";
 import { useId } from "react";
 
-/** Requirement id chip; its text shows on hover or keyboard focus. */
+/** "Hands-on experience running Kafka…": cut at a word boundary near `max` characters. */
+export function shortLabel(text: string, max = 28): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max + 1).replace(/\s+\S*$/, "");
+  return `${(cut || text.slice(0, max)).replace(/[\s,.;:]+$/, "")}…`;
+}
+
+/** Requirement chip: a short label, the full text on hover (title) and to screen readers (aria-describedby). */
 export function RequirementChip({ id, req }: { id: string; req?: KitRequirementView }) {
-  const tipId = useId();
+  const fullId = useId();
+  if (!req) return <span className="inline-block rounded border border-line px-1.5 text-sm text-pencil">{id}</span>;
   return (
-    <span tabIndex={0} aria-describedby={req ? tipId : undefined} className="group relative inline-block rounded border border-line px-1.5 text-sm text-pencil">
-      {id}
-      {req && (
-        <span
-          role="tooltip" id={tipId}
-          className="invisible absolute bottom-full left-0 z-10 mb-1 w-64 max-w-[80vw] rounded border border-line bg-sheet p-2 text-graphite group-hover:visible group-focus:visible"
-        >
-          {req.text}
-        </span>
-      )}
+    <span
+      tabIndex={0} title={req.text} aria-describedby={fullId}
+      className="inline-block rounded border border-line px-1.5 text-sm text-pencil hover:bg-wash"
+    >
+      {shortLabel(req.text)}
+      <span id={fullId} className="sr-only">
+        {req.text}
+      </span>
     </span>
   );
 }
