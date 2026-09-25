@@ -35,3 +35,33 @@ export function fakeDeps(overrides: Partial<PipelineDeps> = {}): PipelineDeps & 
     ...overrides,
   };
 }
+
+/**
+ * Fake LLM that answers generation prompts like a well-behaved model: "Write exactly N" → N questions spread over
+ * the listed requirement ids; gap prompts → one per id; flashcards → one card per id. Other labels from `fixed`.
+ * `skip` lists requirement ids it never writes about (to exercise gaps and fallbacks).
+ */
+export function scriptedLLM(fixed: Record<string, unknown>, { skip = [] as string[] } = {}) {
+  const calls: CompleteRequest[] = [];
+  const respond = (req: CompleteRequest): unknown => {
+    const label = req.label.replace(/ \(repair\)$/, "");
+    if (label in fixed) return fixed[label];
+    const ids = [...req.user.matchAll(/^(r\d+) \[/gm)].map((m) => m[1]).filter((id) => !skip.includes(id));
+    if (label === "flashcards") return { cards: ids.map((id) => ({ requirement_ids: [id], front: `Recall ${id}`, back: `Answer ${id}` })) };
+    const n = label.startsWith("gap:") ? ids.length : Number(/Write exactly (\d+)/.exec(req.user)?.[1] ?? 0);
+    const questions = Array.from({ length: n }, (_, i) => ({
+      requirement_ids: ids.length ? [ids[i % ids.length]] : [],
+      prompt: `${label} question ${i + 1}`,
+      answer_outline: "- point",
+      difficulty: (i % 3) + 1,
+    }));
+    return { questions };
+  };
+  return {
+    calls,
+    complete: async (req: CompleteRequest) => {
+      calls.push(req);
+      return { text: JSON.stringify(respond(req)), provider: "fake", model: "fake-1", usage: { total_tokens: 10 } };
+    },
+  };
+}
