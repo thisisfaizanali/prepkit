@@ -14,10 +14,14 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "dev:api": "npm run dev -w @prepkit/api",
     "evaluate": "tsx apps/api/src/scripts/evaluate.ts",
-    "fixtures": "tsx examples/fixtures/serve.ts"
+    "fixtures": "tsx examples/fixtures/serve.ts",
+    "dev": "concurrently -k -n api,web -c auto \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:web": "npm run dev -w @prepkit/web",
+    "build:web": "npm run build -w @prepkit/web"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
+    "concurrently": "^10.0.5",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
