@@ -10,6 +10,16 @@ export type KitStatus = (typeof KIT_STATUSES)[number];
 export type KitInput = { jd: string; company_url: string; days: number };
 export type ResearchCache = { pages: { url: string; kind: string; text: string }[] };
 
+export type Regeneration = {
+  section: "brief" | "questions" | "gaps";
+  category?: string;
+  status: "running" | "done" | "failed";
+  startedAt: Date;
+  finishedAt?: Date;
+  error?: { code: string; message: string };
+  summary?: unknown;
+};
+
 export type KitDoc = {
   _id: string;
   userId: string;
@@ -21,7 +31,10 @@ export type KitDoc = {
   kit: Kit | null;
   error: { code: string; message: string } | null;
   researchCache: ResearchCache | null;
+  /** Bumped on every kit change; builder writes compare-and-swap on it. */
   version: number;
+  /** The latest background section regeneration (absent on kits never regenerated). */
+  regeneration?: Regeneration | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -59,6 +72,11 @@ export interface KitRepo {
   list(userId: string): Promise<Omit<KitDoc, "progress" | "researchCache">[]>;
   /** Sets updatedAt. A missing kit (e.g. deleted mid-run) is a no-op. */
   update(id: string, patch: Partial<Omit<KitDoc, "_id" | "userId">>): Promise<void>;
+  /**
+   * Compare-and-swap: replace the kit (plus `extra` fields) and bump the version, only if the stored version is still
+   * `expectedVersion`. False means someone else wrote first: reload and retry.
+   */
+  casKit(userId: string, id: string, expectedVersion: number, kit: KitDoc["kit"], extra?: Partial<Pick<KitDoc, "regeneration">>): Promise<boolean>;
   delete(userId: string, id: string): Promise<boolean>;
   findByStatus(statuses: KitStatus[]): Promise<KitDoc[]>;
 }

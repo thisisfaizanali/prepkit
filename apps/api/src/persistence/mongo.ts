@@ -44,6 +44,9 @@ export async function connectMongo(uri: string, dbName: string): Promise<{ repos
       findByInputHash: (userId, inputHash) => kits.findOne({ userId, inputHash }),
       list: (userId) => kits.find({ userId }, { projection: { progress: 0, researchCache: 0 } }).sort({ updatedAt: -1 }).toArray(),
       update: async (id, patch) => void (await kits.updateOne({ _id: id }, { $set: { ...patch, updatedAt: new Date() } })),
+      casKit: async (userId, id, expectedVersion, kit, extra = {}) =>
+        (await kits.updateOne({ _id: id, userId, version: expectedVersion }, { $set: { ...extra, kit, version: expectedVersion + 1, updatedAt: new Date() } }))
+          .matchedCount === 1,
       delete: async (userId, id) => (await kits.deleteOne({ _id: id, userId })).deletedCount === 1,
       findByStatus: (statuses) => kits.find({ status: { $in: statuses } }).toArray(),
     },

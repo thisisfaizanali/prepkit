@@ -4,6 +4,7 @@ import type { JobQueue } from "../jobs/runner.ts";
 import type { Repos } from "../persistence/types.ts";
 import { authRouter, requireAuth, type AuthDeps } from "./auth.ts";
 import { errorHandler, notFound } from "./errors.ts";
+import { builderRouter } from "./builder.ts";
 import { kitsRouter } from "./kits.ts";
 
 export type AppDeps = {
@@ -50,7 +51,7 @@ export function createApp(deps: AppDeps): Express {
 
   app.get("/api/health", (_req, res) => void res.json({ ok: true }));
   app.use("/api/auth", authRouter(auth));
-  app.use("/api/kits", kitsRouter({ kits: deps.repos.kits, queue: deps.jobs, now: auth.now, requireAuth: requireAuth(auth) }));
+  app.use("/api/kits", requireAuth(auth), builderRouter({ kits: deps.repos.kits }), kitsRouter({ kits: deps.repos.kits, queue: deps.jobs, now: auth.now }));
 
   app.use(() => {
     throw notFound("No such endpoint");

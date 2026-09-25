@@ -40,6 +40,12 @@ export function createMemoryRepos(now: () => number = Date.now): Repos {
         const k = kits.get(id);
         if (k) kits.set(id, { ...k, ...copy(patch), updatedAt: new Date(now()) });
       },
+      async casKit(userId, id, expectedVersion, kit, extra = {}) {
+        const k = kits.get(id);
+        if (!k || k.userId !== userId || k.version !== expectedVersion) return false;
+        kits.set(id, { ...k, ...copy(extra), kit: copy(kit), version: expectedVersion + 1, updatedAt: new Date(now()) });
+        return true;
+      },
       async delete(userId, id) {
         return kits.get(id)?.userId === userId && kits.delete(id);
       },

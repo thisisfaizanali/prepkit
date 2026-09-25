@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { Router, type RequestHandler } from "express";
+import { Router } from "express";
 import { z } from "zod";
 import type { JobQueue } from "../jobs/runner.ts";
 import { DuplicateKeyError, type KitDoc, type KitInput, type KitRepo } from "../persistence/types.ts";
@@ -81,10 +81,10 @@ const summary = (k: Omit<KitDoc, "progress" | "researchCache">) => ({
   error: k.error,
 });
 
-export function kitsRouter({ kits, queue, now, requireAuth }: { kits: KitRepo; queue: JobQueue; now: () => number; requireAuth: RequestHandler }): Router {
+/** Mounted behind requireAuth. */
+export function kitsRouter({ kits, queue, now }: { kits: KitRepo; queue: JobQueue; now: () => number }): Router {
   const router = Router();
   const service = kitService(kits, queue, now);
-  router.use(requireAuth);
 
   router.post("/", async (req, res) => {
     const r = await service.submit(currentUser(res)._id, validate(KitInputSchema, req.body));
@@ -107,7 +107,7 @@ export function kitsRouter({ kits, queue, now, requireAuth }: { kits: KitRepo; q
     const doc = await kits.get(currentUser(res)._id, validate(IdParam, req.params).id);
     if (!doc) throw notFound("Kit not found");
     const { _id, researchCache: _cache, ...rest } = doc;
-    res.json({ id: _id, ...rest });
+    res.json({ id: _id, ...rest, regeneration: rest.regeneration ?? null });
   });
 
   router.delete("/:id", async (req, res) => {

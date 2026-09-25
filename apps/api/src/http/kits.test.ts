@@ -38,7 +38,7 @@ describe("kit endpoints", () => {
     expect(kit).not.toHaveProperty("researchCache");
     expect((await repos.kits.getById(created.body.id))!.researchCache!.pages).toHaveLength(1); // stored, just not served
     const list = (await a.get("/api/kits").expect(200)).body.kits;
-    expect(list).toEqual([expect.objectContaining({ id: created.body.id, status: "done", company: "Acme", role: "Backend Engineer", days: 3, counts: { requirements: 1, questions: 1, flashcards: 0 } })]);
+    expect(list).toEqual([expect.objectContaining({ id: created.body.id, status: "done", company: "Acme", role: "Backend Engineer", days: 3, counts: { requirements: 3, questions: 4, flashcards: 1 } })]);
   });
 
   it("user B can't GET/DELETE/retry user A's kit (404); lists are per user", async () => {
