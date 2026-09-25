@@ -3,7 +3,7 @@ import { z } from "zod";
 import { MAX_TOKENS } from "../../llm/budgets.ts";
 import { generateJson } from "../../llm/json.ts";
 import { untrusted, UNTRUSTED_POLICY } from "../../llm/untrusted.ts";
-import { llmInfo, traced, type PipelineDeps } from "../trace.ts";
+import { llmInfo, plural, traced, type PipelineDeps } from "../trace.ts";
 import type { KitRequirement } from "./extractRequirements.ts";
 import { errorCode, QUESTION_META } from "./generateQuestions.ts";
 
@@ -57,7 +57,7 @@ async function batchCards(batch: KitRequirement[], deps: Pick<PipelineDeps, "llm
         .filter((c) => c.front && c.back);
       return { cards, llm: llmInfo(label, res) };
     },
-    (r) => ({ detail: `${r.cards.length} cards for ${batch.length} requirements`, llm: r.llm }),
+    (r) => ({ detail: `${plural(r.cards.length, "card")} for ${plural(batch.length, "requirement")}`, llm: r.llm }),
   ).then((r) => r.cards);
 }
 

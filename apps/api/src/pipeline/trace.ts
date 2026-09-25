@@ -38,6 +38,9 @@ export const llmInfo = (label: string, r: Omit<GenerateJsonResult<unknown>, "dat
   repaired: r.repaired,
 });
 
+/** "1 result", "3 results": for progress detail strings. */
+export const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
+
 /** Run a step with started/done/failed events and timing. */
 export async function traced<T>(
   deps: Pick<PipelineDeps, "now" | "onProgress">,

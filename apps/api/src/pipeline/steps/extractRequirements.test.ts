@@ -156,6 +156,6 @@ describe("extractRequirements", () => {
     ]);
     expect(r.warnings).toEqual(["1 extracted requirements were discarded because they could not be traced to the job description"]);
     expect(deps.events.map((e) => e.status)).toEqual(["started", "done"]);
-    expect(deps.events[1]).toMatchObject({ detail: "3 kept of 4 extracted", llm: { provider: "fake" } });
+    expect(deps.events[1]).toMatchObject({ detail: "3 kept of 4 requirements extracted", llm: { provider: "fake" } });
   });
 });

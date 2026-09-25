@@ -9,7 +9,7 @@ import { errorCode, generateAllQuestions, numberQuestions, QUESTION_META } from 
 import { planQuestionJobs } from "./steps/planQuestions.ts";
 import { extractAndResearch } from "./steps/research.ts";
 import { summarizeHiringProcess } from "./steps/summarizeHiringProcess.ts";
-import { createTrace, type PipelineDeps, type ProgressEvent } from "./trace.ts";
+import { createTrace, plural, type PipelineDeps, type ProgressEvent } from "./trace.ts";
 
 export const DEFAULT_TIMEOUT_MS = 240_000;
 
@@ -113,7 +113,7 @@ async function run({ jd, company_url, days }: PipelineInput, outer: PipelineDeps
   warnings.push(...drafted.warnings, ...covered.warnings, ...cards.warnings);
 
   const schedule = buildSchedule(requirements, questions, days);
-  onProgress({ step: "schedule", status: "done", detail: `${schedule.days.length} days, ${questions.length} questions` });
+  onProgress({ step: "schedule", status: "done", detail: `${plural(schedule.days.length, "day")}, ${plural(questions.length, "question")}` });
 
   let companyUrl = company_url;
   try {

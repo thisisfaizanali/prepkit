@@ -2,7 +2,7 @@ import { z } from "zod";
 import { MAX_TOKENS } from "../../llm/budgets.ts";
 import { generateJson } from "../../llm/json.ts";
 import { untrusted, UNTRUSTED_POLICY } from "../../llm/untrusted.ts";
-import { llmInfo, traced, type PipelineDeps } from "../trace.ts";
+import { llmInfo, plural, traced, type PipelineDeps } from "../trace.ts";
 import type { ResearchResult } from "./research.ts";
 
 const HIRING_PAGES_CHARS = 6000;
@@ -79,6 +79,6 @@ export async function summarizeHiringProcess(
       const res = await generateJson(deps.llm, { label, system: SYSTEM, user, schema: SummarySchema, temperature: 0.2, maxTokens: MAX_TOKENS.hiringSummary });
       return { summary: { ...res.data, sources: sources.map((s) => s.url) }, llm: llmInfo(label, res) };
     },
-    (r) => ({ detail: `${r.summary.stages.length} stages from ${sources.length} sources`, llm: r.llm }),
+    (r) => ({ detail: `${plural(r.summary.stages.length, "stage")} from ${plural(sources.length, "source")}`, llm: r.llm }),
   ).then((r) => r.summary);
 }

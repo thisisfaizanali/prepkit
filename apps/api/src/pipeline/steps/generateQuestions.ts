@@ -4,7 +4,7 @@ import { MAX_TOKENS } from "../../llm/budgets.ts";
 import { LLMError } from "../../llm/client.ts";
 import { generateJson } from "../../llm/json.ts";
 import { untrusted, UNTRUSTED_POLICY } from "../../llm/untrusted.ts";
-import { llmInfo, traced, type PipelineDeps } from "../trace.ts";
+import { llmInfo, plural, traced, type PipelineDeps } from "../trace.ts";
 import type { KitRequirement } from "./extractRequirements.ts";
 import { CATEGORY_ORDER, type QuestionCategory, type QuestionJob } from "./planQuestions.ts";
 import type { HiringProcessSummary } from "./summarizeHiringProcess.ts";
@@ -135,7 +135,7 @@ export async function generateQuestions(
       });
       return { questions: postProcess(res.data.questions, job.category, job.requirementIds), llm: llmInfo(label, res) };
     },
-    (r) => ({ detail: `${r.questions.length} questions (asked for ${gap ? job.requirementIds.length : job.target})`, llm: r.llm }),
+    (r) => ({ detail: `${plural(r.questions.length, "question")} (asked for ${gap ? job.requirementIds.length : job.target})`, llm: r.llm }),
   ).then((r) => r.questions);
 }
 

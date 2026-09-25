@@ -3,7 +3,7 @@ import { z } from "zod";
 import { MAX_TOKENS } from "../../llm/budgets.ts";
 import { generateJson } from "../../llm/json.ts";
 import { untrusted, UNTRUSTED_POLICY } from "../../llm/untrusted.ts";
-import { llmInfo, traced, type PipelineDeps } from "../trace.ts";
+import { llmInfo, plural, traced, type PipelineDeps } from "../trace.ts";
 import type { ResearchResult, SitePage } from "./research.ts";
 
 const SITE_CHARS = 8000;
@@ -94,7 +94,7 @@ export async function companyBrief(
         const sources = [...used.map((u) => u.page.url), ...(jdParagraph ? ["job description"] : [])];
         return { brief: { ...res.data, sources, meta: { ...META } }, llm: llmInfo(label, res) };
       },
-      (r) => ({ detail: `from ${r.brief.sources.length} source(s)`, llm: r.llm }),
+      (r) => ({ detail: `from ${plural(r.brief.sources.length, "source")}`, llm: r.llm }),
     ).then((r) => r.brief);
   }
 

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { MAX_TOKENS } from "../../llm/budgets.ts";
 import { generateJson } from "../../llm/json.ts";
 import { untrusted, UNTRUSTED_POLICY } from "../../llm/untrusted.ts";
-import { llmInfo, traced, type LLMCallInfo, type PipelineDeps } from "../trace.ts";
+import { llmInfo, plural, traced, type LLMCallInfo, type PipelineDeps } from "../trace.ts";
 
 const MAX_JD_CHARS = 20_000;
 const THIN_JD_CHARS = 400;
@@ -198,6 +198,6 @@ export async function extractRequirements(jd: string, deps: Pick<PipelineDeps, "
       const guarded = guardRequirements(jd, raw);
       return { extraction, ...guarded, llm: llmInfo(label, res), raw: raw.length };
     },
-    (r) => ({ detail: `${r.requirements.length} kept of ${r.raw} extracted`, llm: r.llm }),
+    (r) => ({ detail: `${r.requirements.length} kept of ${plural(r.raw, "requirement")} extracted`, llm: r.llm }),
   ).then(({ raw: _raw, ...result }) => result);
 }

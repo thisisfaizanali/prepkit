@@ -5,7 +5,7 @@ import { RetrievalError } from "../../retrieval/errors.ts";
 import { HIRING_CONTENT_THRESHOLD, scorePageContent } from "../../retrieval/rankLinks.ts";
 import type { SearchOutcome, SearchResult } from "../../retrieval/search.ts";
 import { isBlockedAddress, normalizeCompanyUrl } from "../../retrieval/urlGuard.ts";
-import { traced, type PipelineDeps } from "../trace.ts";
+import { plural, traced, type PipelineDeps } from "../trace.ts";
 import { extractRequirements, type ExtractionResult } from "./extractRequirements.ts";
 
 const MAX_SEARCH_FETCHES = 2;
@@ -100,7 +100,7 @@ export async function extractAndResearch(
     () => deps.crawl(input.companyUrl),
     (c) => ({
       detail: c.reachable
-        ? `${c.pages.length} pages, hiring page ${c.hiringPageFound ? "found" : "not found"}`
+        ? `${plural(c.pages.length, "page")}, hiring page ${c.hiringPageFound ? "found" : "not found"}`
         : `unreachable: ${c.error?.code}`,
     }),
   );
@@ -137,7 +137,7 @@ async function gatherResearch(companyUrl: string, extraction: ExtractionResult, 
       deps,
       "search",
       () => deps.search({ companyName, companyUrl, roleTitle: extraction.extraction.title || undefined }),
-      (s) => ({ detail: s.skipped ? `skipped: ${s.skipped}` : `${s.results.length} results for ${s.queries.length} queries` }),
+      (s) => ({ detail: s.skipped ? `skipped: ${s.skipped}` : `${plural(s.results.length, "result")} for ${plural(s.queries.length, "query", "queries")}` }),
     );
   }
   if (search.skipped) skipped.push({ source: "search", reason: search.skipped });
@@ -178,7 +178,7 @@ async function gatherResearch(companyUrl: string, extraction: ExtractionResult, 
           }
           return found;
         },
-        (found) => ({ detail: `checked ${candidates.length} in-scope result(s), ${found.length} confirmed as hiring pages` }),
+        (found) => ({ detail: `checked ${plural(candidates.length, "in-scope result")}, ${found.length} confirmed as hiring ${found.length === 1 ? "page" : "pages"}` }),
       );
     }
   }
