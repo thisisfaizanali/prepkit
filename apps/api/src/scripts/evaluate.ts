@@ -4,10 +4,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Kit } from "@prepkit/shared";
 import { config } from "../config.ts";
-import { LLMClient, providersFromConfig } from "../llm/client.ts";
-import { crawlCompany } from "../retrieval/crawl.ts";
-import { fetchPage } from "../retrieval/fetchPage.ts";
-import { searchInterviewDiscussion } from "../retrieval/search.ts";
+import { createPipelineDeps } from "../pipeline/deps.ts";
 import { runBatch } from "../pipeline/runBatch.ts";
 import { runPipeline } from "../pipeline/runPipeline.ts";
 
@@ -37,11 +34,9 @@ try {
 if (!Array.isArray(cases)) fail(`${inputPath} must contain a JSON array of cases`);
 const list = cases as unknown[];
 
-// One client for the whole batch, so every case shares the same pacing windows.
-const llm = new LLMClient({
-  providers: providersFromConfig(config),
-  timeoutMs: config.LLM_TIMEOUT_MS,
-  onEvent: (e) => {
+// One set of deps (one LLM client) for the whole batch, so every case shares the same pacing windows.
+const deps = createPipelineDeps(config, {
+  onLLMEvent: (e) => {
     if (e.type !== "rate_limited" || e.waitMs > 5000) console.error(`  [llm] ${e.type} ${JSON.stringify(e).slice(0, 160)}`);
   },
 });
@@ -63,7 +58,7 @@ const output = await runBatch(
       if (e.status !== "started") console.error(`[${c.id}] ${e.step} ${e.status}${e.ms !== undefined ? ` ${e.ms}ms` : ""}${e.detail ? ` — ${e.detail.slice(0, 140)}` : ""}`);
     };
     try {
-      const { kit } = await runPipeline(c, { llm, crawl: crawlCompany, search: searchInterviewDiscussion, fetchPage, now: Date.now, onProgress });
+      const { kit } = await runPipeline(c, { ...deps, onProgress });
       return kit as Kit;
     } finally {
       timing.set(c.id, (Date.now() - t0) / 1000);
