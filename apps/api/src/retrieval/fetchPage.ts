@@ -116,12 +116,15 @@ async function fetchOnce(start: URL, opts: FetchOptions): Promise<FetchedPage> {
 }
 
 async function request(url: URL, opts: FetchOptions): Promise<FetchedPage | { redirect: URL }> {
+  // Stopping early (truncation, redirects, errors) aborts the request rather than cancelling the body stream:
+  // cancelling mid-stream races socket teardown on Windows and can crash the process (libuv UV_HANDLE_CLOSING).
+  const stop = new AbortController();
   let res: Response;
   try {
     res = await fetch(url, {
       redirect: "manual",
       headers: { "user-agent": USER_AGENT, accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1" },
-      signal: AbortSignal.timeout(opts.timeoutMs ?? 10_000),
+      signal: AbortSignal.any([stop.signal, AbortSignal.timeout(opts.timeoutMs ?? 10_000)]),
     });
   } catch (e) {
     const err = e as Error;
@@ -133,11 +136,11 @@ async function request(url: URL, opts: FetchOptions): Promise<FetchedPage | { re
 
   const location = res.headers.get("location");
   if (res.status >= 300 && res.status < 400 && location) {
-    await res.body?.cancel();
+    stop.abort();
     return { redirect: new URL(location, url) };
   }
   if (res.status === 429 || res.status >= 500) {
-    await res.body?.cancel();
+    stop.abort();
     const retryAfter = Number(res.headers.get("retry-after"));
     throw new Retryable(
       new RetrievalError(`HTTP_${res.status}`, `HTTP ${res.status}`, url.href),
@@ -145,23 +148,23 @@ async function request(url: URL, opts: FetchOptions): Promise<FetchedPage | { re
     );
   }
   if (res.status >= 400) {
-    await res.body?.cancel();
+    stop.abort();
     throw new RetrievalError(`HTTP_${res.status}`, `HTTP ${res.status}`, url.href);
   }
 
   const contentType = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
   const allowed = opts.allowXml ? [...HTML_TYPES, ...XML_TYPES] : HTML_TYPES;
   if (!allowed.includes(contentType)) {
-    await res.body?.cancel();
+    stop.abort();
     throw new RetrievalError("UNSUPPORTED_CONTENT_TYPE", `Unsupported content type "${contentType || "none"}"`, url.href);
   }
 
-  const { body, truncated } = await readCapped(res, opts.maxBytes ?? (opts.allowXml ? XML_MAX_BYTES : PAGE_MAX_BYTES));
+  const { body, truncated } = await readCapped(res, opts.maxBytes ?? (opts.allowXml ? XML_MAX_BYTES : PAGE_MAX_BYTES), stop);
   return { url: url.href, status: res.status, contentType, body, truncated };
 }
 
 /** Read the body stream up to maxBytes, then stop and return what we have (content-length is not trusted). */
-async function readCapped(res: Response, maxBytes: number): Promise<{ body: string; truncated: boolean }> {
+async function readCapped(res: Response, maxBytes: number, stop: AbortController): Promise<{ body: string; truncated: boolean }> {
   if (!res.body) return { body: "", truncated: false };
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -173,7 +176,8 @@ async function readCapped(res: Response, maxBytes: number): Promise<{ body: stri
     const room = maxBytes - total;
     if (value.byteLength > room) {
       body += decoder.decode(value.subarray(0, room)); // final decode drops a split multi-byte char
-      await reader.cancel();
+      reader.releaseLock();
+      stop.abort();
       return { body, truncated: true };
     }
     total += value.byteLength;

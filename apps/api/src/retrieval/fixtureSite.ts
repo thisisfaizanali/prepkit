@@ -109,7 +109,13 @@ export async function startFixtureSite({ bigSitemap = false, dupSitemaps = false
   return {
     base: `http://127.0.0.1:${port}`,
     hits,
-    close: () => new Promise<void>((r) => server.close(() => r())),
+    // Drop fetch's keep-alive sockets now, not at worker exit: on Windows, sockets still closing when the
+    // worker exits trip a libuv assertion (UV_HANDLE_CLOSING) and crash it with 0xC0000409.
+    close: () =>
+      new Promise<void>((r) => {
+        server.close(() => r());
+        server.closeAllConnections();
+      }),
   };
 }
 
