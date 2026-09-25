@@ -15,6 +15,16 @@ export function KitPage({ id }: { id: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => setNotice(takeNotice()), []);
 
+  const d = kit.data;
+  const title =
+    d?.status === "done" && d.kit ? `${d.kit.source.role || d.kit.role.title} | prepkit`
+    : d?.status === "queued" || d?.status === "running" ? "Building kit | prepkit"
+    : d?.status === "failed" ? "Kit failed | prepkit"
+    : null;
+  useEffect(() => {
+    if (title) document.title = title;
+  }, [title]);
+
   let body;
   if (kit.isPending) {
     body = (

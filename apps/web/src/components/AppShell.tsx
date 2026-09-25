@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Wordmark } from "@/components/Wordmark";
 import { useLogout, useMe } from "@/lib/queries";
 
+const NAV = [
+  { href: "/kits", label: "Your kits" },
+  { href: "/kits/new", label: "New kit" },
+];
+
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const me = useMe();
   const logout = useLogout();
   return (
@@ -18,10 +24,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="border-b border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
           <Wordmark />
-          <nav aria-label="Main" className="mr-auto">
-            <Link href="/kits/new" className="link font-semibold">
-              New kit
-            </Link>
+          <nav aria-label="Main" className="mr-auto flex gap-5">
+            {NAV.map(({ href, label }) => (
+              <Link
+                key={href} href={href} aria-current={pathname === href ? "page" : undefined}
+                className="font-semibold underline-offset-4 hover:underline aria-[current=page]:underline aria-[current=page]:decoration-2"
+              >
+                {label}
+              </Link>
+            ))}
           </nav>
           <span className="min-w-0 truncate text-sm text-pencil" title={me.data?.email}>
             {me.data?.email ?? " "}

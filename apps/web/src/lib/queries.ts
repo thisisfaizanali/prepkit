@@ -18,6 +18,8 @@ export const useKit = (id: string) =>
     queryKey: ["kit", id],
     queryFn: () => api<KitResponse>(`/kits/${encodeURIComponent(id)}`),
     refetchInterval: (q) => (isBusy(q.state.data) ? 2000 : false),
+    // Keep polling in a background tab while work is in progress (the interval is off otherwise anyway).
+    refetchIntervalInBackground: true,
   });
 
 export function useCreateKit() {
