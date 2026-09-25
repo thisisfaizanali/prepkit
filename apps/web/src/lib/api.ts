@@ -13,12 +13,13 @@ export class ApiError extends Error {
 }
 
 /** Relative /api fetch (proxied to the API by Next). Non-2xx throws ApiError from the { error } envelope. */
-export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function api<T>(path: string, init: { method?: string; body?: unknown; keepalive?: boolean } = {}): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`/api${path}`, {
       method: init.method ?? "GET",
       credentials: "same-origin",
+      keepalive: init.keepalive,
       headers: init.body === undefined ? undefined : { "content-type": "application/json" },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });

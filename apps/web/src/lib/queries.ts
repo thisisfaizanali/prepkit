@@ -20,6 +20,11 @@ export const useKit = (id: string) =>
     refetchInterval: (q) => (isBusy(q.state.data) ? 2000 : false),
     // Keep polling in a background tab while work is in progress (the interval is off otherwise anyway).
     refetchIntervalInBackground: true,
+    // A poll that started before a save finished can answer with an older kit: never step back a version.
+    structuralSharing: (old, next) => {
+      const [a, b] = [old as KitResponse | undefined, next as KitResponse];
+      return a && b && a.status === "done" && b.status === "done" && b.version < a.version ? a : b;
+    },
   });
 
 export function useCreateKit() {

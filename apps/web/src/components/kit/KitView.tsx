@@ -10,6 +10,8 @@ import { RoleSection } from "@/components/kit/RoleSection";
 import { ScheduleSection } from "@/components/kit/ScheduleSection";
 import { SourcesSection } from "@/components/kit/SourcesSection";
 import { plural } from "@/lib/format";
+import { BuilderProvider, useBuilder } from "@/components/builder/BuilderContext";
+import { ToastProvider } from "@/components/builder/Toasts";
 
 const TABS: TabDef[] = [
   { id: "brief", label: "Brief" },
@@ -38,7 +40,17 @@ function Section({ tab, kit, jd }: { tab: string; kit: Kit; jd: string }) {
 }
 
 export function KitView({ doc }: { doc: KitResponse & { kit: Kit } }) {
-  const { kit } = doc;
+  return (
+    <ToastProvider>
+      <BuilderProvider doc={doc}>
+        <Binder />
+      </BuilderProvider>
+    </ToastProvider>
+  );
+}
+
+function Binder() {
+  const { doc, kit } = useBuilder();
   // The active tab lives in the URL hash, so a section can be linked to and survives a reload.
   const [tab, setTab] = useState("brief");
   useEffect(() => {
