@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { KitBatchRequestSchema, KitInputSchema } from "@prepkit/shared";
 import { Router } from "express";
 import { z } from "zod";
 import type { JobQueue } from "../jobs/runner.ts";
@@ -7,12 +8,7 @@ import { normalizeCompanyUrl } from "../retrieval/urlGuard.ts";
 import { currentUser } from "./auth.ts";
 import { HttpError, notFound, validate } from "./errors.ts";
 
-export const KitInputSchema = z.object({
-  jd: z.string().trim().min(1, "jd is empty").max(50_000),
-  company_url: z.string().trim().min(1, "company_url is empty").max(2000),
-  days: z.number().int().min(1).max(90),
-});
-const BatchSchema = z.object({ cases: z.array(KitInputSchema).min(1).max(10) });
+const BatchSchema = KitBatchRequestSchema;
 const IdParam = z.object({ id: z.string().min(1).max(100) });
 
 /** sha256(userId + normalised JD + normalised URL). Days are left out: the schedule can be rebuilt for other days. */

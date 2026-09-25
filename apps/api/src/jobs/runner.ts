@@ -53,10 +53,10 @@ export class JobRunner implements JobQueue {
   private async process(id: string): Promise<void> {
     const doc = await this.kits.getById(id);
     if (!doc || doc.status !== "queued") return; // deleted, or already handled
-    await this.kits.update(id, { status: "running", progress: [], error: null });
+    const now = this.opts.now ?? Date.now;
+    await this.kits.update(id, { status: "running", progress: [], error: null, startedAt: new Date(now()) });
 
     // Progress goes to the DB at most once per interval (in order); the final state is always written below.
-    const now = this.opts.now ?? Date.now;
     const interval = this.opts.progressIntervalMs ?? 1000;
     const progress: ProgressEvent[] = [];
     let lastWrite = 0;

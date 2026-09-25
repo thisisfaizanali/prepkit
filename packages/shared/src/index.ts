@@ -7,3 +7,4 @@ export * from "./builder/state.ts";
 export * from "./builder/normalize.ts";
 export * from "./builder/merge.ts";
 export * from "./builder/ops.ts";
+export * from "./api.ts";

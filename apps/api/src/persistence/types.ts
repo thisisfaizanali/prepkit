@@ -27,6 +27,8 @@ export type KitDoc = {
   input: KitInput;
   inputHash: string;
   progress: ProgressEvent[];
+  /** When the current (or last) generation run started; the web app's elapsed timer counts from it. */
+  startedAt?: Date | null;
   /** The kit plus its extensions (evidence, research, pipeline_trace). */
   kit: Kit | null;
   error: { code: string; message: string } | null;

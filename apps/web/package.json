@@ -9,10 +9,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@prepkit/shared": "*",
+    "@tanstack/react-query": "^5.103.2",
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "@prepkit/shared": "*",
     "zod": "^4.6.5"
   },
   "devDependencies": {
