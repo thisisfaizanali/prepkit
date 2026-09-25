@@ -37,8 +37,8 @@ export function RoleSection({ kit, jd }: { kit: KitView; jd: string }) {
   return (
     <div className="space-y-8">
       <section className="max-w-[760px]">
-        <h2 className="text-h2">{kit.role.title}</h2>
-        <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+        <h2 className="sr-only">Role</h2>
+        <dl className="flex flex-wrap gap-x-6 gap-y-1">
           {kit.role.seniority && (
             <div className="flex gap-1.5">
               <dt className="text-pencil">Seniority</dt>
@@ -65,23 +65,25 @@ export function RoleSection({ kit, jd }: { kit: KitView; jd: string }) {
       </section>
 
       <section aria-labelledby="req-heading" className="grid gap-8 lg:grid-cols-2">
-        <div className="hidden lg:block">
+        {/* Sticky column: heading + panel stay in view while the requirement list scrolls; the panel scrolls itself. */}
+        <div className="hidden self-start lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:flex-col">
           <h3 className="text-h3">Job description</h3>
           <p className="mt-1 text-sm text-pencil">Marked text is where each requirement came from.</p>
-          <div className="mt-3 max-h-[75vh] overflow-y-auto rounded border border-line bg-sheet p-4 whitespace-pre-wrap break-words lg:sticky lg:top-6">
+          <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded border border-line bg-sheet p-4 whitespace-pre-wrap break-words">
             {segments.map((s) => {
               if (!s.ids.length) return <span key={s.start}>{s.text}</span>;
               const must = s.ids.some((id) => priority.get(id) === "must");
               const isActive = !!active && s.ids.includes(active.id);
+              const dimmed = !!active && !isActive;
               return (
                 <mark
                   key={s.start} data-req={s.ids.join(" ")} tabIndex={0}
                   aria-describedby={s.ids.map((id) => `req-text-${id}`).join(" ")}
                   onMouseEnter={() => activate(s.ids[0], "jd")} onMouseLeave={clear}
                   onFocus={() => activate(s.ids[0], "jd")} onBlur={clear}
-                  className={`${must ? "bg-highlight text-on-highlight" : "bg-transparent text-graphite underline decoration-highlight decoration-[3px] underline-offset-2"} ${
+                  className={`motion-safe:transition-opacity ${must ? "bg-highlight text-on-highlight" : "bg-transparent text-graphite underline decoration-highlight decoration-[3px] underline-offset-2"} ${
                     isActive ? "outline-2 outline-graphite" : ""
-                  }`}
+                  } ${dimmed ? "opacity-35" : ""}`}
                 >
                   {s.text}
                 </mark>
