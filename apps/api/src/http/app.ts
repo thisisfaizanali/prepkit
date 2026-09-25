@@ -1,11 +1,15 @@
 import express, { type Express, type RequestHandler } from "express";
 import helmet from "helmet";
+import type { JobQueue } from "../jobs/runner.ts";
 import type { Repos } from "../persistence/types.ts";
-import { authRouter, type AuthDeps } from "./auth.ts";
+import { authRouter, requireAuth, type AuthDeps } from "./auth.ts";
 import { errorHandler, notFound } from "./errors.ts";
+import { kitsRouter } from "./kits.ts";
 
 export type AppDeps = {
   repos: Repos;
+  /** Where new and retried kits are sent for generation. */
+  jobs: JobQueue;
   now?: () => number;
   production?: boolean;
   /** Enables CORS (with credentials) for this origin only. */
@@ -46,6 +50,7 @@ export function createApp(deps: AppDeps): Express {
 
   app.get("/api/health", (_req, res) => void res.json({ ok: true }));
   app.use("/api/auth", authRouter(auth));
+  app.use("/api/kits", kitsRouter({ kits: deps.repos.kits, queue: deps.jobs, now: auth.now, requireAuth: requireAuth(auth) }));
 
   app.use(() => {
     throw notFound("No such endpoint");

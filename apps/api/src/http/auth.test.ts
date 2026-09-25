@@ -5,10 +5,12 @@ import { parseCookies, SESSION_TTL_MS } from "../auth/session.ts";
 import { createMemoryRepos } from "../persistence/memory.ts";
 import { createApp } from "./app.ts";
 
+const noJobs = { enqueue: () => {} };
+
 function setup() {
   let clock = Date.parse("2026-01-01T00:00:00Z");
   const repos = createMemoryRepos(() => clock);
-  const app = createApp({ repos, now: () => clock, authRateLimit: 100 });
+  const app = createApp({ repos, jobs: noJobs, now: () => clock, authRateLimit: 100 });
   return { app, repos, agent: request.agent(app), advance: (ms: number) => (clock += ms) };
 }
 const creds = { email: "Ada@Example.test", password: "correct horse" };
@@ -82,15 +84,15 @@ describe("auth routes", () => {
   });
 
   it("rate limits login/register per IP", async () => {
-    const app = createApp({ repos: createMemoryRepos(), authRateLimit: 2 });
+    const app = createApp({ jobs: noJobs, repos: createMemoryRepos(), authRateLimit: 2 });
     for (let i = 0; i < 2; i++) await request(app).post("/api/auth/login").send(creds).expect(401);
     const limited = await request(app).post("/api/auth/login").send(creds).expect(429);
     expect(limited.body.error.code).toBe("RATE_LIMITED");
   });
 
   it("health is public; secure cookie in production", async () => {
-    await request(createApp({ repos: createMemoryRepos() })).get("/api/health").expect(200, { ok: true });
-    const prod = createApp({ repos: createMemoryRepos(), production: true });
+    await request(createApp({ jobs: noJobs, repos: createMemoryRepos() })).get("/api/health").expect(200, { ok: true });
+    const prod = createApp({ jobs: noJobs, repos: createMemoryRepos(), production: true });
     expect(setCookie(await request(prod).post("/api/auth/register").send(creds).expect(201))).toContain("; Secure");
   });
 });

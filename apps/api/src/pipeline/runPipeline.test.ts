@@ -5,7 +5,7 @@ import { crawlCompany } from "../retrieval/crawl.ts";
 import { HostLimiter } from "../retrieval/fetchPage.ts";
 import { closedPort, startFixtureSite, type FixtureSite } from "../retrieval/fixtureSite.ts";
 import { fakeDeps, scriptedLLM } from "./fakes.ts";
-import { PipelineError, runPipeline } from "./runPipeline.ts";
+import { capPages, PipelineError, runPipeline } from "./runPipeline.ts";
 
 const JD = `Senior Backend Engineer
 Requirements:
@@ -40,7 +40,7 @@ describe("runPipeline", () => {
 
   it("e2e on the fixture site: valid kit, requested days, every must covered, 4 distinct category prompts", async () => {
     const llm = scriptedLLM(fixed({ signals: { system_design: true, take_home: true } }));
-    const { kit, trace } = await runPipeline({ jd: JD, company_url: `${site.base}/acme/`, days: 5 }, fakeDeps({ llm, crawl }));
+    const { kit, trace, researchCache } = await runPipeline({ jd: JD, company_url: `${site.base}/acme/`, days: 5 }, fakeDeps({ llm, crawl }));
     const k = kit as Kit & { research: { hiring_page_found: boolean }; pipeline_trace: unknown[] };
 
     expect(validateKit(kit)).toMatchObject({ ok: true });
@@ -52,6 +52,7 @@ describe("runPipeline", () => {
     expect(k.source.pages_used).toContain(`${site.base}/acme/company/life/`);
     expect(k.role.requirements[0]).toMatchObject({ id: "r1", evidence: "5+ years of TypeScript" });
     expect(k.pipeline_trace).toBe(trace);
+    expect(researchCache.pages.map((p) => p.kind)).toContain("hiring");
 
     const systemByCategory = new Map(llm.calls.filter((c) => c.label.startsWith("questions:")).map((c) => [c.label, c.system]));
     expect([...systemByCategory.keys()].sort()).toEqual(["questions:behavioural", "questions:company-fit", "questions:system-design", "questions:technical"]);
@@ -101,5 +102,12 @@ describe("runPipeline", () => {
     const e = await runPipeline({ jd: JD, company_url: `${site.base}/acme/`, days: 1 }, fakeDeps({ llm: hang, crawl }), { timeoutMs: 50 }).catch((x) => x);
     expect(e).toBeInstanceOf(PipelineError);
     expect(e.code).toBe("TIMEOUT");
+  });
+});
+
+describe("capPages", () => {
+  it("keeps pages in order within the char budget, truncating the last", () => {
+    const p = (url: string, n: number) => ({ url, kind: "about", text: "x".repeat(n) });
+    expect(capPages([p("a", 6), p("b", 6), p("c", 6)], 10).map((x) => [x.url, x.text.length])).toEqual([["a", 6], ["b", 4]]);
   });
 });

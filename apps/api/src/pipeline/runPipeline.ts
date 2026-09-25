@@ -32,7 +32,22 @@ export const PipelineInputSchema = z.object({
 });
 export type PipelineInput = z.infer<typeof PipelineInputSchema>;
 
-export type PipelineResult = { kit: Record<string, unknown>; trace: ProgressEvent[] };
+export const RESEARCH_CACHE_CHARS = 30_000;
+export type ResearchCachePage = { url: string; kind: string; text: string };
+/** researchCache: the site and hiring page texts the run used, so the brief can be regenerated without re-crawling. */
+export type PipelineResult = { kit: Record<string, unknown>; trace: ProgressEvent[]; researchCache: { pages: ResearchCachePage[] } };
+
+/** Keep pages in order until the total text budget runs out (the last one truncated). */
+export function capPages(pages: ResearchCachePage[], budget = RESEARCH_CACHE_CHARS): ResearchCachePage[] {
+  const out: ResearchCachePage[] = [];
+  for (const p of pages) {
+    if (budget <= 0) break;
+    const text = p.text.slice(0, budget);
+    out.push({ ...p, text });
+    budget -= text.length;
+  }
+  return out;
+}
 
 /**
  * Full run: [extraction ∥ crawl] → search → hiring summary ∥ brief → plan → questions → coverage loop → flashcards
@@ -135,5 +150,11 @@ async function run({ jd, company_url, days }: PipelineInput, outer: PipelineDeps
 
   const valid = validateKit(kit);
   if (!valid.ok) throw new PipelineError("INVALID_KIT", valid.errors.join("; "));
-  return { kit, trace };
+  const researchCache = {
+    pages: capPages([
+      ...research.pages.map(({ url, kind, text }) => ({ url, kind, text })),
+      ...research.hiringPages.map(({ url, text }) => ({ url, kind: "hiring", text })),
+    ]),
+  };
+  return { kit, trace, researchCache };
 }
