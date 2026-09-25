@@ -25,6 +25,8 @@ export type ResearchResult = {
   discussion: DiscussionResult[];
   skipped: { source: string; reason: string }[];
   hiringPageFound: boolean;
+  /** The JD names one company, the website looks like another's: site content is not used. */
+  siteMismatch?: { jdCompany: string; siteName: string };
   warnings: string[];
 };
 
@@ -59,6 +61,13 @@ export function resolveCompanyName(
   if (!host || isLocalHost(host) || labels.length < 2) return { name: "", source: "hostname" };
   const label = labels[labels.length - 2];
   return { name: label.charAt(0).toUpperCase() + label.slice(1), source: "hostname" };
+}
+
+const squash = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+/** Loose name match: either normalised name contains the other ("PostHog" ~ "PostHog Inc."). */
+export function namesMatch(a: string, b: string): boolean {
+  const [x, y] = [squash(a), squash(b)];
+  return !x || !y || x.includes(y) || y.includes(x);
 }
 
 /** localhost, *.localhost, or an IP literal. */
@@ -105,11 +114,16 @@ async function gatherResearch(companyUrl: string, extraction: ExtractionResult, 
   const { name: companyName, source: companyNameSource } = resolveCompanyName(extraction.extraction.company, home, companyUrl);
   const skipped: ResearchResult["skipped"] = crawl.skipped.map((s) => ({ source: s.url, reason: s.reason }));
 
-  const pages: SitePage[] = crawl.pages
+  // Who the website says it is, ignoring the JD. A clash means the URL is probably for another company.
+  const jdCompany = extraction.extraction.company?.trim() ?? "";
+  const siteName = resolveCompanyName(null, home, companyUrl).name;
+  const siteMismatch = jdCompany && siteName && !namesMatch(jdCompany, siteName) ? { jdCompany, siteName } : undefined;
+
+  const pages: SitePage[] = siteMismatch ? [] : crawl.pages
     .filter((p): p is CrawlPage & { kind: SitePage["kind"] } => ["home", "about", "careers", "engineering"].includes(p.kind))
     .map(({ url, title, description, text, kind }) => ({ url, title, description, text, kind }));
   const hiringPages: HiringPage[] = crawl.pages
-    .filter((p) => p.kind === "hiring")
+    .filter((p) => p.kind === "hiring" && !siteMismatch)
     .map(({ url, title, text, contentScore }) => ({ url, title, text, contentScore, origin: "crawl" }));
 
   // A name guessed from the hostname (or none at all) could belong to anyone: don't search the web with it.
@@ -138,7 +152,7 @@ async function gatherResearch(companyUrl: string, extraction: ExtractionResult, 
     .map((r) => ({ ...r, usedForSummary: !(privateUrl && r.attribution === "name") }));
 
   // Search-assisted hiring discovery: the crawl may miss a hiring page the search engine knows about.
-  if (hiringPages.length === 0 && crawl.reachable) {
+  if (hiringPages.length === 0 && crawl.reachable && !siteMismatch) {
     const crawled = new Set(crawl.pages.map((p) => p.url));
     const candidates = companyOwned.filter((r) => !crawled.has(r.url)).slice(0, MAX_SEARCH_FETCHES);
     if (candidates.length === 0) {
@@ -170,7 +184,11 @@ async function gatherResearch(companyUrl: string, extraction: ExtractionResult, 
   }
 
   const warnings: string[] = [];
-  if (!crawl.reachable) {
+  if (siteMismatch) {
+    warnings.push(
+      `The job description names ${jdCompany} but the website appears to belong to ${siteName}; site content was not used for the company brief or hiring process.`,
+    );
+  } else if (!crawl.reachable) {
     warnings.push(
       `The company site (${companyUrl}) could not be reached (${crawl.error?.code ?? "UNKNOWN"}); company research is limited to the job description.`,
     );
@@ -197,6 +215,7 @@ async function gatherResearch(companyUrl: string, extraction: ExtractionResult, 
     discussion,
     skipped,
     hiringPageFound: hiringPages.length > 0,
+    ...(siteMismatch ? { siteMismatch } : {}),
     warnings,
   };
 }

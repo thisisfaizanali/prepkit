@@ -45,6 +45,11 @@ describe("guardRequirements", () => {
     expect(r.map((x) => x.evidence)).toEqual(["Strong Go skills", "Solid SQL", "Kafka"]);
   });
 
+  it("capitalises the first letter of requirement text", () => {
+    const [r] = guardRequirements(JD, [req("track record of mentoring", "Experience mentoring other engineers")]).requirements;
+    expect(r.text).toBe("Track record of mentoring");
+  });
+
   it("rejects empty evidence", () => {
     expect(guardRequirements(JD, [req("x", "  -- ")]).requirements).toEqual([]);
   });

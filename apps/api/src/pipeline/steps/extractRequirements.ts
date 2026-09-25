@@ -81,6 +81,9 @@ export const normalizeText = (s: string) =>
 /** Stored evidence without a leading bullet or list number ("- ", "* ", "• ", "1. ", "2) "). */
 const cleanEvidence = (evidence: string) => evidence.trim().replace(/^(?:[-*•·‣◦]|\d+[.)])\s*/u, "").trim();
 
+/** "track record of mentoring" → "Track record of mentoring" (the model sometimes copies from mid-sentence). */
+const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 const hasCue = (text: string, cues: string[]) => {
   const hay = ` ${normalizeText(text)} `;
   return cues.some((c) => hay.includes(` ${c} `));
@@ -152,7 +155,7 @@ export function guardRequirements(jd: string, raw: RawRequirement[]): { requirem
         : hasCue(own, MUST_CUES) || hasCue(heading, MUST_CUES)
           ? "must"
           : r.priority;
-    kept.push({ id: "", text: r.text.trim(), kind: r.kind, priority, evidence: cleanEvidence(r.evidence), pos, order });
+    kept.push({ id: "", text: capitalise(r.text.trim()), kind: r.kind, priority, evidence: cleanEvidence(r.evidence), pos, order });
   });
 
   kept.sort((a, b) => a.pos - b.pos || a.order - b.order);

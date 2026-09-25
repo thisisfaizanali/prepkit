@@ -60,7 +60,7 @@ Return a JSON object: { "what_they_do": string } — 1-3 sentences, using ONLY t
 ${UNTRUSTED_POLICY}`;
 
 export async function companyBrief(
-  input: { research: Pick<ResearchResult, "pages" | "reachable" | "crawlError" | "companyName">; jd: string; companyUrl: string },
+  input: { research: Pick<ResearchResult, "pages" | "reachable" | "crawlError" | "companyName" | "siteMismatch">; jd: string; companyUrl: string },
   deps: Pick<PipelineDeps, "llm" | "now" | "onProgress">,
 ): Promise<CompanyBrief> {
   const { research, jd, companyUrl } = input;
@@ -99,7 +99,9 @@ export async function companyBrief(
   }
 
   // No usable site text: say so honestly, built in code. Nothing is guessed.
-  const summary = research.reachable
+  const summary = research.siteMismatch
+    ? `The website (${companyUrl}) appears to belong to ${research.siteMismatch.siteName}, not ${research.siteMismatch.jdCompany}, so this brief is not based on it. Nothing here is guessed.`
+    : research.reachable
     ? `The company website (${companyUrl}) was reachable but had no descriptive content that could be used, so this brief does not summarise it. Nothing here is guessed.`
     : `The company website (${companyUrl}) could not be retrieved (${research.crawlError?.code ?? "UNKNOWN"}: ${research.crawlError?.message ?? "no details"}), so this brief is not based on it. Nothing here is guessed.`;
 

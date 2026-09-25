@@ -45,7 +45,7 @@ export async function generateJson<T>(
     "",
     "Return the corrected JSON only, with no commentary or code fences.",
   ].join("\n");
-  const second = await client.complete({ ...req, user: repairUser, maxTokens: MAX_TOKENS.repair, json: true, label: `${req.label} (repair)` });
+  const second = await client.complete({ ...req, user: repairUser, maxTokens: Math.max(req.maxTokens ?? 0, MAX_TOKENS.repair), json: true, label: `${req.label} (repair)` });
   const reparsed = parse(second.text, schema);
   const usage = { total_tokens: first.usage.total_tokens + second.usage.total_tokens };
   if (reparsed.ok) return { data: reparsed.data, provider: second.provider, model: second.model, usage, repaired: true };

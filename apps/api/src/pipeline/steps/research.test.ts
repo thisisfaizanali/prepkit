@@ -4,7 +4,8 @@ import type { CrawlResult } from "../../retrieval/crawl.ts";
 import { fetchPage, HostLimiter } from "../../retrieval/fetchPage.ts";
 import { startFixtureSite, type FixtureSite } from "../../retrieval/fixtureSite.ts";
 import { fakeDeps, fakeLLM } from "../fakes.ts";
-import { extractAndResearch, resolveCompanyName } from "./research.ts";
+import { companyBrief } from "./companyBrief.ts";
+import { extractAndResearch, namesMatch, resolveCompanyName } from "./research.ts";
 import { summarizeHiringProcess } from "./summarizeHiringProcess.ts";
 
 const JD = "Backend Engineer\nRequirements:\n- TypeScript\n- PostgreSQL\n- Kafka";
@@ -54,6 +55,14 @@ describe("resolveCompanyName", () => {
     for (const url of ["http://localhost:1/", "http://127.0.0.1:8080/acme/", "http://[::1]/", "http://app.localhost/"]) {
       expect(resolveCompanyName(null, undefined, url)).toEqual({ name: "", source: "hostname" });
     }
+  });
+});
+
+describe("namesMatch", () => {
+  it("case/punctuation-insensitive containment either way", () => {
+    expect(namesMatch("PostHog", "PostHog Inc.")).toBe(true);
+    expect(namesMatch("posthog, inc", "PostHog")).toBe(true);
+    expect(namesMatch("Brightmeal", "PostHog")).toBe(false);
   });
 });
 
@@ -183,4 +192,37 @@ describe("extractAndResearch", () => {
     expect(research.companyName).toBe("");
     expect(searched).toBe(false);
   });
+
+  it("JD names another company than the site → warning, no site pages or hiring pages, brief from the JD only", async () => {
+    const hiring = { url: `${site.base}/acme/company/life/`, title: "Life", siteName: "", description: "", text: "interview process", kind: "hiring" as const, linkScore: 5, contentScore: 4 };
+    const llm = fakeLLM({ extract_requirements: extraction("Brightmeal"), company_brief_from_jd: { what_they_do: "According to the job description, Brightmeal plans hospital menus." } });
+    const search = async (q: { companyName: string }) => ({ queries: [q.companyName], results: [] });
+    const deps = fakeDeps({ llm, crawl: async () => crawlResult(site.base, { pages: [...crawlResult(site.base).pages, hiring], hiringPageFound: true }), search });
+    const jd = `${JD}
+
+About us
+Brightmeal is a startup that helps hospital kitchens plan menus.`;
+    const { research } = await extractAndResearch({ jd, companyUrl: `${site.base}/acme/` }, deps);
+    expect(research.siteMismatch).toEqual({ jdCompany: "Brightmeal", siteName: "Acme" });
+    expect(research.warnings).toContain(
+      "The job description names Brightmeal but the website appears to belong to Acme; site content was not used for the company brief or hiring process.",
+    );
+    expect(research.warnings.some((w) => w.includes("about page") || w.includes("hiring or interview process"))).toBe(false);
+    expect(research.pages).toEqual([]);
+    expect(research.hiringPages).toEqual([]);
+    expect(research.companyName).toBe("Brightmeal");
+    expect((await summarizeHiringProcess(research, deps))).toBeNull();
+    const brief = await companyBrief({ research, jd, companyUrl: `${site.base}/acme/` }, deps);
+    expect(brief.sources).toEqual(["job description"]);
+    expect(brief.summary).toContain("appears to belong to Acme, not Brightmeal");
+    expect(llm.calls.map((c) => c.label)).toEqual(["extract_requirements", "company_brief_from_jd"]);
+  });
+
+  it("matching names (JD 'Acme Corp', site 'Acme') → no mismatch", async () => {
+    const deps = fakeDeps({ llm: fakeLLM({ extract_requirements: extraction("Acme Corp") }), crawl: async () => crawlResult(site.base) });
+    const { research } = await extractAndResearch({ jd: JD, companyUrl: `${site.base}/acme/` }, deps);
+    expect(research.siteMismatch).toBeUndefined();
+    expect(research.pages).toHaveLength(1);
+  });
 });
+
