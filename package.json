@@ -12,7 +12,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "evaluate": "tsx apps/api/src/scripts/evaluate.ts"
+    "evaluate": "tsx apps/api/src/scripts/evaluate.ts",
+    "fixtures": "tsx examples/fixtures/serve.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

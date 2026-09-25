@@ -1,0 +1,32 @@
+[
+  {
+    "id": "acme-full",
+    "jd": "Senior Backend Engineer, Data Pipelines\n\nLocation: Remote (UTC-2 to UTC+3)\nTeam: Ingestion\n\nAbout the role\nWe're looking for a senior backend engineer to join the Ingestion team, which owns the pipeline that receives billions of analytics events every day and makes them queryable within seconds.\n\nWhat you'll do\n- Design, build and operate high-throughput services that ingest and process event data\n- Own features end to end, from talking to customers to shipping and monitoring in production\n- Improve the reliability and cost-efficiency of our ClickHouse and Kafka infrastructure\n- Review code and write design docs that other engineers can build on\n- Take part in a shared on-call rotation\n\nRequirements\n- 5+ years of professional backend development experience\n- Strong proficiency in Python or Go\n- Hands-on experience running Kafka (or a similar streaming system) in production\n- Solid understanding of SQL and analytical databases\n- Experience designing systems for high throughput and low latency\n- You have shipped and supported services running on Kubernetes\n- Excellent written communication; we are a remote, async-first company\n- A track record of mentoring other engineers\n\nNice to have\n- Experience with ClickHouse\n- Rust experience\n- Contributions to open-source projects\n- Familiarity with product analytics tools\n\nWhat we offer\n- Competitive salary and meaningful equity\n- Unlimited time off with a 25-day minimum\n- A generous home-office budget\n- Twice-yearly company offsites\n\nWe value diverse perspectives and encourage people from all backgrounds to apply, even if you don't meet every requirement listed.\n",
+    "company_url": "http://localhost:8099/acme/",
+    "days": 5
+  },
+  {
+    "id": "globex-stub",
+    "jd": "Backend engineer wanted.\nMust know Python and SQL.\n",
+    "company_url": "http://localhost:8099/globex/",
+    "days": 1
+  },
+  {
+    "id": "unreachable-full",
+    "jd": "Senior Backend Engineer, Data Pipelines\n\nLocation: Remote (UTC-2 to UTC+3)\nTeam: Ingestion\n\nAbout the role\nWe're looking for a senior backend engineer to join the Ingestion team, which owns the pipeline that receives billions of analytics events every day and makes them queryable within seconds.\n\nWhat you'll do\n- Design, build and operate high-throughput services that ingest and process event data\n- Own features end to end, from talking to customers to shipping and monitoring in production\n- Improve the reliability and cost-efficiency of our ClickHouse and Kafka infrastructure\n- Review code and write design docs that other engineers can build on\n- Take part in a shared on-call rotation\n\nRequirements\n- 5+ years of professional backend development experience\n- Strong proficiency in Python or Go\n- Hands-on experience running Kafka (or a similar streaming system) in production\n- Solid understanding of SQL and analytical databases\n- Experience designing systems for high throughput and low latency\n- You have shipped and supported services running on Kubernetes\n- Excellent written communication; we are a remote, async-first company\n- A track record of mentoring other engineers\n\nNice to have\n- Experience with ClickHouse\n- Rust experience\n- Contributions to open-source projects\n- Familiarity with product analytics tools\n\nWhat we offer\n- Competitive salary and meaningful equity\n- Unlimited time off with a 25-day minimum\n- A generous home-office budget\n- Twice-yearly company offsites\n\nWe value diverse perspectives and encourage people from all backgrounds to apply, even if you don't meet every requirement listed.\n",
+    "company_url": "http://localhost:1/",
+    "days": 60
+  },
+  {
+    "id": "posthog-about-us",
+    "jd": "Full-Stack Engineer (TypeScript)\n\nAbout us\nBrightmeal is a 30-person startup that helps hospital kitchens plan menus for patients with dietary restrictions. Our web app is used by dietitians and kitchen staff in over 200 hospitals across the UK and Ireland.\n\nAbout the role\nYou will work across our React front end and Node.js back end, shipping features that dietitians use every day.\n\nRequirements:\n- 3+ years building web applications with TypeScript\n- Experience with React\n- Experience with Node.js and PostgreSQL\n- Comfortable talking directly with customers to understand their needs\n\nBonus points for:\n- Experience in healthcare software or with patient data regulations (GDPR, NHS DSPT)\n- Familiarity with GraphQL\n",
+    "company_url": "https://posthog.com",
+    "days": 7
+  },
+  {
+    "id": "gitlab-full",
+    "jd": "Senior Backend Engineer, Data Pipelines\n\nLocation: Remote (UTC-2 to UTC+3)\nTeam: Ingestion\n\nAbout the role\nWe're looking for a senior backend engineer to join the Ingestion team, which owns the pipeline that receives billions of analytics events every day and makes them queryable within seconds.\n\nWhat you'll do\n- Design, build and operate high-throughput services that ingest and process event data\n- Own features end to end, from talking to customers to shipping and monitoring in production\n- Improve the reliability and cost-efficiency of our ClickHouse and Kafka infrastructure\n- Review code and write design docs that other engineers can build on\n- Take part in a shared on-call rotation\n\nRequirements\n- 5+ years of professional backend development experience\n- Strong proficiency in Python or Go\n- Hands-on experience running Kafka (or a similar streaming system) in production\n- Solid understanding of SQL and analytical databases\n- Experience designing systems for high throughput and low latency\n- You have shipped and supported services running on Kubernetes\n- Excellent written communication; we are a remote, async-first company\n- A track record of mentoring other engineers\n\nNice to have\n- Experience with ClickHouse\n- Rust experience\n- Contributions to open-source projects\n- Familiarity with product analytics tools\n\nWhat we offer\n- Competitive salary and meaningful equity\n- Unlimited time off with a 25-day minimum\n- A generous home-office budget\n- Twice-yearly company offsites\n\nWe value diverse perspectives and encourage people from all backgrounds to apply, even if you don't meet every requirement listed.\n",
+    "company_url": "https://about.gitlab.com",
+    "days": 3
+  }
+]
