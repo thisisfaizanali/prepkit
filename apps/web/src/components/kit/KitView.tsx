@@ -89,10 +89,22 @@ function Binder() {
             Worth knowing about this kit
           </h2>
           <ul className="mt-1 list-disc space-y-1 pl-5">
-            {kit.warnings.map((w, i) => (
-              <li key={i}>{w}</li>
+            <li>{kit.warnings[0]}</li>
+            {kit.warnings.slice(1).map((w, i) => (
+              <li key={i} className="hidden sm:list-item">{w}</li>
             ))}
           </ul>
+          {kit.warnings.length > 1 && (
+            // Phones: the rest behind a toggle. Wider screens show them all above.
+            <details className="mt-1 sm:hidden">
+              <summary className="text-sm font-semibold">Show all notes ({kit.warnings.length})</summary>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {kit.warnings.slice(1).map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </details>
+          )}
         </aside>
       )}
       <div className="mt-8">

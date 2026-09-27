@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 export type TabDef = { id: string; label: string };
 
@@ -8,6 +8,27 @@ export type TabDef = { id: string; label: string };
 export function KitTabs({ tabs, active, onChange, children }: { tabs: TabDef[]; active: string; onChange: (id: string) => void; children: ReactNode }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const root = useRef<HTMLDivElement>(null);
+  const row = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false); // tabs overflow past the right edge
+  const measure = () => {
+    const el = row.current;
+    if (el) setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  };
+  useEffect(() => {
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+  // Keep the active tab visible in the row (horizontal only: never scroll the page).
+  useEffect(() => {
+    const el = row.current;
+    const tab = refs.current[tabs.findIndex((t) => t.id === active)];
+    if (el && tab && el.scrollWidth > el.clientWidth) {
+      const left = tab.offsetLeft - el.offsetLeft;
+      if (left < el.scrollLeft) el.scrollLeft = left - 16;
+      else if (left + tab.offsetWidth > el.scrollLeft + el.clientWidth) el.scrollLeft = left + tab.offsetWidth - el.clientWidth + 16;
+    }
+    measure();
+  }, [active, tabs]);
   // Scrolled into a long section? Bring the new one's top back into view instead of landing mid-section.
   const select = (id: string) => {
     onChange(id);
@@ -27,7 +48,8 @@ export function KitTabs({ tabs, active, onChange, children }: { tabs: TabDef[]; 
 
   return (
     <div ref={root} className="lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-10">
-      <div className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:overflow-visible lg:px-0">
+      <div className="relative -mx-4 lg:mx-0">
+      <div ref={row} onScroll={measure} className="no-scrollbar overflow-x-auto px-4 lg:overflow-visible lg:px-0">
         <div role="tablist" aria-label="Kit sections" className="flex border-b border-line lg:sticky lg:top-6 lg:flex-col lg:border-b-0">
           {tabs.map((t, i) => {
             const selected = t.id === active;
@@ -45,6 +67,8 @@ export function KitTabs({ tabs, active, onChange, children }: { tabs: TabDef[]; 
             );
           })}
         </div>
+      </div>
+      {more && <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-paper to-transparent lg:hidden" />}
       </div>
       <div role="tabpanel" id={`panel-${active}`} aria-labelledby={`tab-${active}`} tabIndex={0} className="mt-8 min-w-0 lg:mt-0">
         {children}

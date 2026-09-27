@@ -103,9 +103,16 @@ export function NewKitForm() {
 
   return (
     <form onSubmit={onSubmit} noValidate className="mt-6 space-y-8">
+      {rows.map((r, i) => (
+        <RoleRow
+          key={r.key} index={i} draft={r.draft} errors={r.errors} multiple={rows.length > 1}
+          onChange={(d) => update(r.key, d)} onRemove={() => remove(r.key)}
+        />
+      ))}
+
       <div className="space-y-2">
-        <label htmlFor="file" className="block font-semibold">
-          Upload a file
+        <label htmlFor="file" className="block text-sm font-semibold">
+          Or upload a file with several roles
         </label>
         <p id="file-hint" className="text-sm text-pencil">
           Optional. A .json array of {"{ jd, company_url, days }"}, or a .csv with a jd,company_url,days header. Up to {MAX_BATCH} roles.
@@ -119,13 +126,6 @@ export function NewKitForm() {
           {fileStatus && <p className="text-sm">{fileStatus}</p>}
         </div>
       </div>
-
-      {rows.map((r, i) => (
-        <RoleRow
-          key={r.key} index={i} draft={r.draft} errors={r.errors} multiple={rows.length > 1}
-          onChange={(d) => update(r.key, d)} onRemove={() => remove(r.key)}
-        />
-      ))}
 
       <div className="flex flex-wrap items-center gap-3 border-t border-line pt-6">
         <button type="submit" className="btn" disabled={pending}>

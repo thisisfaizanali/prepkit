@@ -57,7 +57,8 @@
   --text-h3--line-height: 1.15;
   --text-h2: 1.563rem;
   --text-h2--line-height: 1.15;
-  --text-h1: 2.441rem;
+  /* 1.75rem below 640px, 2.441rem from 1024px, linear between. */
+  --text-h1: clamp(1.75rem, 0.598rem + 2.879vw, 2.441rem);
   --text-h1--line-height: 1.15;
 
   --radius-sm: 2px;
@@ -91,6 +92,8 @@
 }
 
 @layer components {
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
   .btn {
     display: inline-flex;
     align-items: center;
