@@ -1,7 +1,7 @@
 "use client";
 
 import type { KitResponse, KitView as Kit } from "@prepkit/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BriefSection } from "@/components/kit/BriefSection";
 import { FlashcardsSection } from "@/components/kit/FlashcardsSection";
 import { KitTabs, type TabDef } from "@/components/kit/KitTabs";
@@ -63,12 +63,16 @@ function Binder() {
   // "#practice:3" opens Practice filtered to schedule day 3.
   const [tab, setTab] = useState("brief");
   const [day, setDay] = useState<number>();
+  const tabsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const fromHash = () => {
       const [h, d] = location.hash.slice(1).split(":");
       if (!TABS.some((t) => t.id === h)) return;
       setTab(h);
       setDay(h === "practice" && Number(d) > 0 ? Number(d) : undefined);
+      // Same as a tab click: bring the section's top back into view.
+      const top = tabsRef.current?.getBoundingClientRect().top ?? 0;
+      if (top < 0) window.scrollTo({ top: window.scrollY + top - 16 });
     };
     fromHash();
     window.addEventListener("hashchange", fromHash);
@@ -85,7 +89,7 @@ function Binder() {
       <header className="max-w-[760px]">
         <h1 className="text-h1">{kit.source.role || kit.role.title}</h1>
         <p className="mt-2 text-pencil">
-          {kit.source.company}. Interview in {plural(doc.input.days, "day")}. {plural(kit.questions.length, "question")},{" "}
+          {kit.source.company}. Interview in {plural(kit.schedule.days_available, "day")}. {plural(kit.questions.length, "question")},{" "}
           {plural(kit.flashcards.length, "flashcard")}.
         </p>
         <div className="mt-2">
@@ -116,7 +120,7 @@ function Binder() {
           )}
         </aside>
       )}
-      <div className="mt-8">
+      <div ref={tabsRef} className="mt-8">
         <KitTabs tabs={TABS} active={tab} onChange={change}>
           <Section tab={tab} kit={kit} jd={doc.input.jd} day={day} />
         </KitTabs>
