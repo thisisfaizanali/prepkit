@@ -2,8 +2,8 @@
 
 Paste a job description, give the company's URL and the number of days until the interview, and Prepkit builds a prep kit: the role's requirements (each traced to a quote in the posting), a company brief, a hiring-process summary, interview questions across four categories, flashcards, a day-by-day schedule and a practice mode. Everything generated can be edited, reordered, pinned and regenerated without losing your edits.
 
-- Web: LIVE_WEB_URL
-- API: LIVE_API_URL (health check: `LIVE_API_URL/api/health`)
+- Web: https://prepkit-web-sigma.vercel.app
+- API: https://prepkit-api-b0iy.onrender.com (health check: `https://prepkit-api-b0iy.onrender.com/api/health`)
 
 ## Stack
 
