@@ -1,4 +1,4 @@
-import type { Kit } from "@prepkit/shared";
+import type { Confidence, Kit, PracticeEntry, PracticeProgress } from "@prepkit/shared";
 import type { ProgressEvent } from "../pipeline/trace.ts";
 
 export type UserDoc = { _id: string; email: string; passwordHash: string; createdAt: Date };
@@ -37,6 +37,10 @@ export type KitDoc = {
   version: number;
   /** The latest background section regeneration (absent on kits never regenerated). */
   regeneration?: Regeneration | null;
+  /** Per-flashcard confidence; kept outside `kit` so ratings never conflict with builder ops. */
+  practice?: PracticeProgress;
+  /** Schedule day -> when it was marked done. Cleared when the schedule is rebuilt. */
+  schedule_progress?: Record<string, Date>;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -78,13 +82,19 @@ export interface KitRepo {
    * Compare-and-swap: replace the kit (plus `extra` fields) and bump the version, only if the stored version is still
    * `expectedVersion`. False means someone else wrote first: reload and retry.
    */
-  casKit(userId: string, id: string, expectedVersion: number, kit: KitDoc["kit"], extra?: Partial<Pick<KitDoc, "regeneration">>): Promise<boolean>;
+  casKit(userId: string, id: string, expectedVersion: number, kit: KitDoc["kit"], extra?: KitExtra): Promise<boolean>;
   /** Atomically start a regeneration unless one is already running. False → one is in progress. */
   claimRegeneration(userId: string, id: string, regeneration: Regeneration): Promise<boolean>;
   /** Startup recovery: every running regeneration → failed with `error`. Returns how many. */
   failRunningRegenerations(error: { code: string; message: string }, at: Date): Promise<number>;
+  /** Atomic rating of a card in the kit. Null: kit not found/not owned, or no such card. */
+  recordPractice(userId: string, id: string, flashcardId: string, confidence: Confidence, at: Date): Promise<PracticeEntry | null>;
+  /** Mark a schedule day done/undone. Null: kit not found/not owned, or no such day. */
+  setScheduleDay(userId: string, id: string, day: number, done: boolean, at: Date): Promise<Record<string, Date> | null>;
   delete(userId: string, id: string): Promise<boolean>;
   findByStatus(statuses: KitStatus[]): Promise<KitDoc[]>;
 }
+
+export type KitExtra = Partial<Pick<KitDoc, "regeneration" | "schedule_progress">>;
 
 export type Repos = { users: UserRepo; sessions: SessionRepo; kits: KitRepo };

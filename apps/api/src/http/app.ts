@@ -61,7 +61,7 @@ export function createApp(deps: AppDeps): Express {
       llm: { complete: () => Promise.reject(new LLMError("LLM_UNAVAILABLE", "No LLM configured for regeneration")) },
       now: auth.now,
     });
-  app.use("/api/kits", requireAuth(auth), builderRouter({ kits: deps.repos.kits, regen }), kitsRouter({ kits: deps.repos.kits, queue: deps.jobs, now: auth.now }));
+  app.use("/api/kits", requireAuth(auth), builderRouter({ kits: deps.repos.kits, regen, now: auth.now }), kitsRouter({ kits: deps.repos.kits, queue: deps.jobs, now: auth.now }));
 
   app.use(() => {
     throw notFound("No such endpoint");

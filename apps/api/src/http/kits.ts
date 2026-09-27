@@ -103,7 +103,7 @@ export function kitsRouter({ kits, queue, now }: { kits: KitRepo; queue: JobQueu
     const doc = await kits.get(currentUser(res)._id, validate(IdParam, req.params).id);
     if (!doc) throw notFound("Kit not found");
     const { _id, researchCache: _cache, ...rest } = doc;
-    res.json({ id: _id, ...rest, regeneration: rest.regeneration ?? null });
+    res.json({ id: _id, ...rest, regeneration: rest.regeneration ?? null, practice: rest.practice ?? {}, schedule_progress: rest.schedule_progress ?? {} });
   });
 
   router.delete("/:id", async (req, res) => {

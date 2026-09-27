@@ -1,6 +1,6 @@
 import { validateKit, type BuilderKit, type Kit } from "@prepkit/shared";
 import { HttpError, notFound } from "../http/errors.ts";
-import type { KitDoc, KitRepo } from "./types.ts";
+import type { KitDoc, KitExtra, KitRepo } from "./types.ts";
 
 export const CAS_TRIES = 5;
 
@@ -13,7 +13,7 @@ export async function updateKit(
   kits: KitRepo,
   userId: string,
   id: string,
-  change: (kit: BuilderKit, doc: KitDoc) => { kit: BuilderKit; extra?: Partial<Pick<KitDoc, "regeneration">> },
+  change: (kit: BuilderKit, doc: KitDoc) => { kit: BuilderKit; extra?: KitExtra },
 ): Promise<{ kit: BuilderKit; version: number }> {
   for (let attempt = 1; attempt <= CAS_TRIES; attempt++) {
     const doc = await kits.get(userId, id);

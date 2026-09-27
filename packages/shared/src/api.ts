@@ -1,4 +1,5 @@
 import type { Kit, Requirement } from "./kit.ts";
+import type { PracticeProgress } from "./practice.ts";
 
 /** Response shapes of the HTTP API, shared with the web app. Dates arrive as ISO strings. */
 
@@ -51,6 +52,9 @@ export type KitResponse = {
   kit: KitView | null;
   error: { code: string; message: string } | null;
   regeneration: Regeneration | null;
+  practice: PracticeProgress;
+  /** Schedule day -> ISO time it was marked done. */
+  schedule_progress: Record<string, string>;
   version: number;
   startedAt?: string | null;
   createdAt: string;

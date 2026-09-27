@@ -52,6 +52,24 @@ export async function connectMongo(uri: string, dbName: string): Promise<{ repos
       failRunningRegenerations: async (error, at) =>
         (await kits.updateMany({ "regeneration.status": "running" }, { $set: { "regeneration.status": "failed", "regeneration.error": error, "regeneration.finishedAt": at } }))
           .modifiedCount,
+      recordPractice: async (userId, id, flashcardId, confidence, at) => {
+        const key = `practice.${flashcardId}`;
+        const doc = await kits.findOneAndUpdate(
+          { _id: id, userId, "kit.flashcards.id": flashcardId },
+          { $set: { [`${key}.confidence`]: confidence, [`${key}.lastReviewedAt`]: at.toISOString() }, $inc: { [`${key}.reviews`]: 1 } },
+          { returnDocument: "after", projection: { [key]: 1 } },
+        );
+        return doc?.practice?.[flashcardId] ?? null;
+      },
+      setScheduleDay: async (userId, id, day, done, at) => {
+        const key = `schedule_progress.${day}`;
+        const doc = await kits.findOneAndUpdate(
+          { _id: id, userId, "kit.schedule.days.day": day },
+          done ? { $set: { [key]: at } } : { $unset: { [key]: "" } },
+          { returnDocument: "after", projection: { schedule_progress: 1 } },
+        );
+        return doc ? (doc.schedule_progress ?? {}) : null;
+      },
       delete: async (userId, id) => (await kits.deleteOne({ _id: id, userId })).deletedCount === 1,
       findByStatus: (statuses) => kits.find({ status: { $in: statuses } }).toArray(),
     },

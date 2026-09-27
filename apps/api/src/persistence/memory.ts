@@ -57,6 +57,20 @@ export function createMemoryRepos(now: () => number = Date.now): Repos {
         for (const k of stuck) k.regeneration = { ...k.regeneration!, status: "failed", error: { ...error }, finishedAt: at };
         return stuck.length;
       },
+      async recordPractice(userId, id, flashcardId, confidence, at) {
+        const k = kits.get(id);
+        if (!k || k.userId !== userId || !k.kit?.flashcards.some((c) => c.id === flashcardId)) return null;
+        const entry = { confidence, reviews: (k.practice?.[flashcardId]?.reviews ?? 0) + 1, lastReviewedAt: at.toISOString() };
+        k.practice = { ...k.practice, [flashcardId]: entry };
+        return copy(entry);
+      },
+      async setScheduleDay(userId, id, day, done, at) {
+        const k = kits.get(id);
+        if (!k || k.userId !== userId || !k.kit?.schedule.days.some((d) => d.day === day)) return null;
+        const { [day]: _old, ...rest } = k.schedule_progress ?? {};
+        k.schedule_progress = done ? { ...rest, [day]: at } : rest;
+        return copy(k.schedule_progress);
+      },
       async delete(userId, id) {
         return kits.get(id)?.userId === userId && kits.delete(id);
       },
