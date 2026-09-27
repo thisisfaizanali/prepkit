@@ -1,4 +1,3 @@
-import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { body, fakeRun } from "../jobs/fakes.ts";
 import { JobRunner, type RunFn } from "../jobs/runner.ts";
@@ -6,13 +5,14 @@ import { createMemoryRepos } from "../persistence/memory.ts";
 import { PipelineError } from "../pipeline/runPipeline.ts";
 import { createApp } from "./app.ts";
 import { inputHash } from "./kits.ts";
+import { client, serve } from "./testApp.ts";
 
 function setup(run: RunFn = fakeRun) {
   const repos = createMemoryRepos();
   const runner = new JobRunner(repos.kits, run);
-  const app = createApp({ repos, jobs: runner, authRateLimit: 100 });
+  const app = serve(createApp({ repos, jobs: runner, authRateLimit: 100 }));
   const user = async (email: string) => {
-    const agent = request.agent(app);
+    const agent = client(app);
     await agent.post("/api/auth/register").send({ email, password: "password123" }).expect(201);
     return agent;
   };
@@ -22,7 +22,7 @@ function setup(run: RunFn = fakeRun) {
 describe("kit endpoints", () => {
   it("require a session", async () => {
     const { app } = setup();
-    expect((await request(app).get("/api/kits").expect(401)).body.error.code).toBe("UNAUTHENTICATED");
+    expect((await client(app).get("/api/kits").expect(401)).body.error.code).toBe("UNAUTHENTICATED");
   });
 
   it("POST → 202 queued → job runs → GET shows done with kit + progress, without researchCache", async () => {

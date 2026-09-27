@@ -1,8 +1,7 @@
 import { applyOps, type BuilderKit } from "@prepkit/shared";
-import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { body } from "../jobs/fakes.ts";
-import { setupBuilder } from "./testApp.ts";
+import { client, setupBuilder } from "./testApp.ts";
 
 describe("PATCH /api/kits/:id/ops", () => {
   it("applies ops, bumps the version, and persists; the owner sees it, another user gets 404", async () => {
@@ -29,7 +28,7 @@ describe("PATCH /api/kits/:id/ops", () => {
     expect(bad.body.error.code).toBe("VALIDATION_ERROR");
     expect(bad.body.error.details.length).toBeGreaterThan(0);
     await a.patch(`/api/kits/${id}/ops`).send({ ops: Array.from({ length: 201 }, () => ({ op: "question.delete", id: "x" })) }).expect(400);
-    await request(app).patch(`/api/kits/${id}/ops`).send({ ops: [{ op: "brief.pin", pinned: true }] }).expect(401);
+    await client(app).patch(`/api/kits/${id}/ops`).send({ ops: [{ op: "brief.pin", pinned: true }] }).expect(401);
   });
 
   it("a kit that isn't done yet → 409 NOT_READY", async () => {
