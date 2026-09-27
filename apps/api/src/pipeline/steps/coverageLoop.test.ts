@@ -53,7 +53,7 @@ describe("coverageLoop", () => {
     const failing = { complete: async () => Promise.reject(new Error("boom")) };
     const r = await coverageLoop([], ctx([req("r1", "technical")]), fakeDeps({ llm: failing }));
     expect(r.coverage.uncovered_requirement_ids).toEqual([]);
-    expect(r.added[0]).toMatchObject({ fallback: true, prompt: "Walk me through how you've applied Skill r1 in a real project — what trade-offs did you make?" });
+    expect(r.added[0]).toMatchObject({ fallback: true, prompt: "Walk me through how you've applied Skill r1 in a real project, what trade-offs did you make?" });
     expect(r.warnings[0]).toBe("Could not generate gap questions for r1: INTERNAL");
   });
 });

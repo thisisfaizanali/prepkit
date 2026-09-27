@@ -1,4 +1,4 @@
-# Prepkit — AI interview prep kits
+# Prepkit: AI interview prep kits
 
 Paste a job description, give the company's URL and the number of days until the interview, and Prepkit builds a prep kit: the role's requirements (each traced to a quote in the posting), a company brief, a hiring-process summary, interview questions across four categories, flashcards, a day-by-day schedule and a practice mode. Everything generated can be edited, reordered, pinned and regenerated without losing your edits.
 

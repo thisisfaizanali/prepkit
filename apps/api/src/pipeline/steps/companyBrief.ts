@@ -12,7 +12,7 @@ const MIN_USABLE_CHARS = 200;
 const PARAGRAPH_CHARS = 1500;
 const PAGE_ORDER: SitePage["kind"][] = ["home", "about", "careers", "engineering"];
 const META = { origin: "generated", edited: false, pinned: false } as const;
-const NOT_AVAILABLE = "Not available — no information could be retrieved.";
+const NOT_AVAILABLE = "Not available, no information could be retrieved.";
 
 const ABOUT_HEADING = /^#*\s*(about\s+(us|the company|[\p{L}\p{N} .&'-]{1,40})|who we are|our company|the company|company overview)\s*:?\s*$/iu;
 const NOT_ABOUT_COMPANY = /^#*\s*about\s+(the\s+)?(role|job|position|team|you|this role|the opportunity)\b/i;
@@ -53,7 +53,7 @@ ${UNTRUSTED_POLICY}`;
 
 const JD_ONLY_SYSTEM = `From the company description inside a job description, state what the company does.
 
-Return a JSON object: { "what_they_do": string } — 1-3 sentences, using ONLY that text. Start with
+Return a JSON object: { "what_they_do": string }, 1-3 sentences, using ONLY that text. Start with
 "According to the job description, ". If the text doesn't say what the company does, return
 "The job description doesn't say what the company does."
 

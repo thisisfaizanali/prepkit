@@ -34,7 +34,7 @@ export type ResearchResult = {
 export type DiscussionResult = SearchResult & { usedForSummary: boolean };
 
 const GENERIC_TITLES = new Set(["home", "homepage", "welcome", "index"]);
-const UNKNOWN_NAME_REASON = "company name unknown — public search skipped to avoid attributing results to the wrong organisation";
+const UNKNOWN_NAME_REASON = "company name unknown, public search skipped to avoid attributing results to the wrong organisation";
 
 /** extraction.company → og:site_name → first segment of the home <title> → hostname label. */
 export function resolveCompanyName(
@@ -45,7 +45,7 @@ export function resolveCompanyName(
   if (extractedCompany?.trim()) return { name: extractedCompany.trim(), source: "job_description" };
   if (home?.siteName) return { name: home.siteName, source: "site_name" };
   const segment = home?.title
-    .split(/\s[|–—\-:·]\s|[|–—:·]/)
+    .split(/\s[|–\u2014\-:·]\s|[|–\u2014:·]/)
     .map((s) => s.trim())
     .find(Boolean);
   if (segment && !GENERIC_TITLES.has(segment.toLowerCase())) return { name: segment, source: "page_title" };

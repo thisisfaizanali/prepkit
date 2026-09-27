@@ -11,7 +11,7 @@ const CATEGORY_LABELS: Record<Question["category"], string> = {
   "system-design": "System design",
   "company-fit": "Company fit",
 };
-const EMPTY_FOCUS = "General preparation — no questions available";
+const EMPTY_FOCUS = "General preparation, no questions available";
 
 const learnMinutes = (q: Question) => MINUTES_BY_DIFFICULTY[q.difficulty] ?? 0;
 const reviewMinutes = () => REVIEW_MINUTES;

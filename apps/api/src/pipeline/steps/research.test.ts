@@ -176,7 +176,7 @@ describe("extractAndResearch", () => {
     ]);
     expect(research.skipped).toContainEqual({
       source: "search",
-      reason: "company name unknown — public search skipped to avoid attributing results to the wrong organisation",
+      reason: "company name unknown, public search skipped to avoid attributing results to the wrong organisation",
     });
     expect(deps.events).toContainEqual(expect.objectContaining({ step: "search", status: "skipped" }));
   });

@@ -59,7 +59,7 @@ export async function searchInterviewDiscussion(
       failures.push(`${query}: ${(e as Error).message}`);
     }
   }
-  return { results: [...byUrl.values()], queries, ...(failures.length ? { skipped: `search failed — ${failures.join("; ")}` } : {}) };
+  return { results: [...byUrl.values()], queries, ...(failures.length ? { skipped: `search failed, ${failures.join("; ")}` } : {}) };
 }
 
 /** "domain" if the result is on the company's domain or mentions its hostname, else "name". Localhost/IPs never count. */

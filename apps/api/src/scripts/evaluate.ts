@@ -55,7 +55,7 @@ const output = await runBatch(
   async (c) => {
     const t0 = Date.now();
     const onProgress = (e: { step: string; status: string; ms?: number; detail?: string }) => {
-      if (e.status !== "started") console.error(`[${c.id}] ${e.step} ${e.status}${e.ms !== undefined ? ` ${e.ms}ms` : ""}${e.detail ? ` — ${e.detail.slice(0, 140)}` : ""}`);
+      if (e.status !== "started") console.error(`[${c.id}] ${e.step} ${e.status}${e.ms !== undefined ? ` ${e.ms}ms` : ""}${e.detail ? `, ${e.detail.slice(0, 140)}` : ""}`);
     };
     try {
       const { kit } = await runPipeline(c, { ...deps, onProgress });
@@ -92,4 +92,4 @@ const cols = Object.keys(rows[0] ?? { id: "" }) as (keyof (typeof rows)[number])
 const width = (c: (typeof cols)[number]) => Math.max(c.length, ...rows.map((r) => String(r[c]).length));
 console.error(`\n${cols.map((c) => c.padEnd(width(c))).join("  ")}`);
 for (const r of rows) console.error(cols.map((c) => String(r[c]).padEnd(width(c))).join("  "));
-console.error(`\nTotal: ${((Date.now() - started) / 1000).toFixed(1)}s — ${output.kits.filter((k) => k.status === "ok").length}/${output.kits.length} ok → ${outputPath}`);
+console.error(`\nTotal: ${((Date.now() - started) / 1000).toFixed(1)}s, ${output.kits.filter((k) => k.status === "ok").length}/${output.kits.length} ok → ${outputPath}`);

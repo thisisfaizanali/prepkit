@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fakeDeps, fakeLLM } from "../fakes.ts";
 import { extractRequirements, guardRequirements, type RawRequirement } from "./extractRequirements.ts";
 
-const JD = `Senior Backend Engineer — Acme Payments
+const JD = `Senior Backend Engineer, Acme Payments
 
 About the role
 You will design and run our payment APIs.

@@ -93,7 +93,7 @@ async function run({ jd, company_url, days }: PipelineInput, outer: PipelineDeps
       warnings.push(`Could not write the company brief: ${errorCode(e)}`);
       return {
         summary: `The company brief could not be generated (${errorCode(e)}). Nothing here is guessed.`,
-        what_they_do: "Not available — the brief could not be generated.",
+        what_they_do: "Not available, the brief could not be generated.",
         sources: [],
         meta: { ...QUESTION_META },
       };

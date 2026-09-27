@@ -21,7 +21,7 @@ function fallbackQuestion(r: KitRequirement): DraftQuestion {
     category: behavioural ? "behavioural" : "technical",
     prompt: behavioural
       ? `Tell me about a time you demonstrated ${lcFirst(r.text)}.`
-      : `Walk me through how you've applied ${r.text} in a real project — what trade-offs did you make?`,
+      : `Walk me through how you've applied ${r.text} in a real project, what trade-offs did you make?`,
     answer_outline: behavioural
       ? "- Situation: the context and what was at stake\n- Task: what you were responsible for\n- Action: the specific steps you took\n- Result: the measurable outcome and what you learned"
       : `- The project and why ${r.text} mattered there\n- What you built or decided, and your part in it\n- The trade-offs you weighed and why you chose as you did\n- The outcome, and what you'd do differently`,

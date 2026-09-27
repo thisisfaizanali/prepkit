@@ -21,7 +21,7 @@ describe("recoverJobs", () => {
     await runner.idle();
     expect((await repos.kits.getById("running1"))!).toMatchObject({
       status: "failed",
-      error: { code: "INTERRUPTED", message: "Generation was interrupted by a server restart — retry to continue" },
+      error: { code: "INTERRUPTED", message: "Generation was interrupted by a server restart, retry to continue" },
     });
     expect((await repos.kits.getById("queued1"))!.status).toBe("done");
     expect((await repos.kits.getById("done1"))!).toMatchObject({ status: "done", regeneration: { status: "failed", error: { code: "INTERRUPTED" } } });

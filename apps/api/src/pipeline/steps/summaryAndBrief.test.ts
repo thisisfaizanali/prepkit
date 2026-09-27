@@ -52,7 +52,7 @@ describe("companyBrief", () => {
     expect(llm.calls).toHaveLength(0);
     expect(b.summary).toContain("could not be retrieved (UNREACHABLE");
     expect(b.summary).toContain("Nothing here is guessed");
-    expect(b).toMatchObject({ what_they_do: "Not available — no information could be retrieved.", sources: [], meta: { origin: "generated", edited: false, pinned: false } });
+    expect(b).toMatchObject({ what_they_do: "Not available, no information could be retrieved.", sources: [], meta: { origin: "generated", edited: false, pinned: false } });
   });
 
   it("unreachable site but the JD describes the company → one JD-only call, sources ['job description']", async () => {

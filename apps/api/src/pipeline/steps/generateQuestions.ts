@@ -87,7 +87,7 @@ export function postProcess(raw: z.infer<typeof DraftSchema>["questions"], categ
 
 function userPrompt(job: QuestionJob, ctx: QuestionContext, gap: boolean, avoid: string[]): string {
   const reqs = ctx.requirements.filter((r) => job.requirementIds.includes(r.id));
-  const reqLines = reqs.map((r) => `${r.id} [${r.priority}, ${r.kind}] ${r.text} — evidence: "${r.evidence}"`).join("\n");
+  const reqLines = reqs.map((r) => `${r.id} [${r.priority}, ${r.kind}] ${r.text}, evidence: "${r.evidence}"`).join("\n");
   const hiring = ctx.hiring && (ctx.hiring.stages.length || ctx.hiring.notes)
     ? [...ctx.hiring.stages.map((s) => `- ${s.name}: ${s.description}`), ...(ctx.hiring.notes ? [`Notes: ${ctx.hiring.notes}`] : [])].join("\n")
     : "";

@@ -38,7 +38,7 @@ function codeCard(r: KitRequirement, questions: Question[]): DraftCard {
 
 async function batchCards(batch: KitRequirement[], deps: Pick<PipelineDeps, "llm" | "now" | "onProgress">): Promise<DraftCard[]> {
   const label = "flashcards";
-  const lines = batch.map((r) => `${r.id} [${r.priority}] ${r.text} — evidence: "${r.evidence}"`).join("\n");
+  const lines = batch.map((r) => `${r.id} [${r.priority}] ${r.text}, evidence: "${r.evidence}"`).join("\n");
   return traced(
     deps,
     label,

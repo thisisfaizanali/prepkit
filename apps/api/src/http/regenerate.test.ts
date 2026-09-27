@@ -27,7 +27,7 @@ function slowLLM() {
   };
 }
 
-describe("POST /api/kits/:id/regenerate — questions", () => {
+describe("POST /api/kits/:id/regenerate, questions", () => {
   it("THE race: edits made during a regeneration survive; unprotected questions are replaced; version bumps twice", async () => {
     const slow = slowLLM();
     const { a, id, kit, regen } = await setupBuilder({ llm: slow.llm });
@@ -111,7 +111,7 @@ describe("POST /api/kits/:id/regenerate — questions", () => {
   });
 });
 
-describe("POST /api/kits/:id/regenerate — brief and schedule", () => {
+describe("POST /api/kits/:id/regenerate, brief and schedule", () => {
   it("protected brief without force → 409; with force → replaced from stored pages only", async () => {
     const slow = slowLLM();
     slow.release();
@@ -142,7 +142,7 @@ describe("POST /api/kits/:id/regenerate — brief and schedule", () => {
   });
 });
 
-describe("POST /api/kits/:id/regenerate — gaps", () => {
+describe("POST /api/kits/:id/regenerate, gaps", () => {
   it("delete every question covering must r1 → uncovered → regenerate gaps → covered; summary shows the passes", async () => {
     const llm = scriptedLLM({});
     const { a, id, kit, regen } = await setupBuilder({ llm });
