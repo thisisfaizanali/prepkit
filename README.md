@@ -5,6 +5,14 @@ Paste a job description, give the company's URL and the number of days until the
 - Web: https://prepkit-web-sigma.vercel.app
 - API: https://prepkit-api-b0iy.onrender.com (health check: `https://prepkit-api-b0iy.onrender.com/api/health`)
 
+### Trying the live app
+
+1. Open the web link and choose **Create one** on the login page. Any email and a password of at least 8 characters work; there is no email verification.
+2. Choose **New kit**, paste a job description, enter a public company website (for example `https://posthog.com`) and the number of days until the interview, then **Create kit**.
+3. Watch the progress checklist; a kit usually takes one to three minutes. Each account only sees its own kits.
+
+The API runs on Render's free plan, which sleeps when idle, so the first request after a quiet period can take about 50 seconds. Private and localhost URLs are rejected in production, so the local fixture sites only work when running locally.
+
 ## Stack
 
 | Part | Choice | Why |
