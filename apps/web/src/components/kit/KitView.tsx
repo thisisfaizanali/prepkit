@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { BriefSection } from "@/components/kit/BriefSection";
 import { FlashcardsSection } from "@/components/kit/FlashcardsSection";
 import { KitTabs, type TabDef } from "@/components/kit/KitTabs";
+import { PracticeSection } from "@/components/kit/PracticeSection";
 import { QuestionsSection } from "@/components/kit/QuestionsSection";
 import { RoleSection } from "@/components/kit/RoleSection";
 import { ScheduleSection } from "@/components/kit/ScheduleSection";
@@ -21,10 +22,11 @@ const TABS: TabDef[] = [
   { id: "questions", label: "Questions" },
   { id: "flashcards", label: "Flashcards" },
   { id: "schedule", label: "Schedule" },
+  { id: "practice", label: "Practice" },
   { id: "sources", label: "Sources" },
 ];
 
-function Section({ tab, kit, jd }: { tab: string; kit: Kit; jd: string }) {
+function Section({ tab, kit, jd, day }: { tab: string; kit: Kit; jd: string; day?: number }) {
   switch (tab) {
     case "role":
       return <RoleSection kit={kit} jd={jd} />;
@@ -34,6 +36,8 @@ function Section({ tab, kit, jd }: { tab: string; kit: Kit; jd: string }) {
       return <FlashcardsSection />;
     case "schedule":
       return <ScheduleSection kit={kit} />;
+    case "practice":
+      return <PracticeSection key={day} day={day} />;
     case "sources":
       return <SourcesSection kit={kit} />;
     default:
@@ -56,11 +60,15 @@ export function KitView({ doc }: { doc: KitResponse & { kit: Kit } }) {
 function Binder() {
   const { doc, kit } = useBuilder();
   // The active tab lives in the URL hash, so a section can be linked to and survives a reload.
+  // "#practice:3" opens Practice filtered to schedule day 3.
   const [tab, setTab] = useState("brief");
+  const [day, setDay] = useState<number>();
   useEffect(() => {
     const fromHash = () => {
-      const h = location.hash.slice(1);
-      if (TABS.some((t) => t.id === h)) setTab(h);
+      const [h, d] = location.hash.slice(1).split(":");
+      if (!TABS.some((t) => t.id === h)) return;
+      setTab(h);
+      setDay(h === "practice" && Number(d) > 0 ? Number(d) : undefined);
     };
     fromHash();
     window.addEventListener("hashchange", fromHash);
@@ -68,6 +76,7 @@ function Binder() {
   }, []);
   const change = (id: string) => {
     setTab(id);
+    setDay(undefined);
     history.replaceState(null, "", `#${id}`);
   };
 
@@ -109,7 +118,7 @@ function Binder() {
       )}
       <div className="mt-8">
         <KitTabs tabs={TABS} active={tab} onChange={change}>
-          <Section tab={tab} kit={kit} jd={doc.input.jd} />
+          <Section tab={tab} kit={kit} jd={doc.input.jd} day={day} />
         </KitTabs>
       </div>
     </article>
