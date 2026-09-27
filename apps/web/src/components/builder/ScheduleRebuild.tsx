@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { KitResponse } from "@prepkit/shared";
 import { useId, useState } from "react";
 import { useBuilder } from "@/components/builder/BuilderContext";
 import { useToast } from "@/components/builder/Toasts";
@@ -11,6 +12,7 @@ import type { Saved } from "@/lib/builder/store";
 export function ScheduleRebuild() {
   const { doc, kit, flush, adopt } = useBuilder();
   const toast = useToast();
+  const qc = useQueryClient();
   const id = useId();
   const [days, setDays] = useState(String(kit.schedule.days_available));
   const n = Number(days);
@@ -22,6 +24,7 @@ export function ScheduleRebuild() {
     },
     onSuccess: (saved) => {
       adopt(saved);
+      qc.setQueryData<KitResponse>(["kit", doc.id], (d) => d && { ...d, schedule_progress: {} }); // the server cleared it too
       toast({ message: `Schedule rebuilt for ${n} ${n === 1 ? "day" : "days"}.` });
     },
   });
