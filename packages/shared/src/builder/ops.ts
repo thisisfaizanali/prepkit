@@ -26,7 +26,8 @@ const UserFlashcardId = z.string().regex(/^fu-[a-z0-9]{8}$/, 'user-created flash
 /**
  * Every op can be re-applied to a newer kit (compare-and-swap retries): update/move carry a snapshot of the item,
  * so an edit to an item a concurrent regeneration removed re-inserts it instead of being lost; add is a no-op when
- * the id already exists; delete/pin of a missing id is a no-op.
+ * the id already exists; delete/pin of a missing id is a no-op. restore (Undo of a delete) puts the item back
+ * exactly as it was, meta included, and is a no-op when the id exists.
  */
 export const OpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("question.update"), id: Id, patch: QuestionPatchSchema, snapshot: QuestionSchema }),
@@ -34,11 +35,13 @@ export const OpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("question.delete"), id: Id }),
   z.object({ op: z.literal("question.move"), id: Id, category: z.enum(QUESTION_CATEGORIES).optional(), beforeId: Id.nullable(), snapshot: QuestionSchema }),
   z.object({ op: z.literal("question.pin"), id: Id, pinned: z.boolean() }),
+  z.object({ op: z.literal("question.restore"), question: QuestionSchema, beforeId: Id.nullable() }),
   z.object({ op: z.literal("flashcard.update"), id: Id, patch: FlashcardPatchSchema, snapshot: FlashcardSchema }),
   z.object({ op: z.literal("flashcard.add"), flashcard: FlashcardSchema.extend({ id: UserFlashcardId }) }),
   z.object({ op: z.literal("flashcard.delete"), id: Id }),
   z.object({ op: z.literal("flashcard.move"), id: Id, beforeId: Id.nullable(), snapshot: FlashcardSchema }),
   z.object({ op: z.literal("flashcard.pin"), id: Id, pinned: z.boolean() }),
+  z.object({ op: z.literal("flashcard.restore"), flashcard: FlashcardSchema, beforeId: Id.nullable() }),
   z.object({ op: z.literal("brief.update"), patch: BriefPatchSchema }),
   z.object({ op: z.literal("brief.pin"), pinned: z.boolean() }),
 ]);
@@ -89,6 +92,12 @@ function applyOne(kit: BuilderKit, op: Op): void {
       if (q) q.meta = touched(q, { pinned: op.pinned });
       return;
     }
+    case "question.restore": {
+      if (qs.some((x) => x.id === op.question.id)) return;
+      const before = op.beforeId ? qs.findIndex((x) => x.id === op.beforeId && x.category === op.question.category) : -1;
+      qs.splice(before >= 0 ? before : categorySlot(qs, op.question.category), 0, structuredClone(op.question));
+      return;
+    }
     case "flashcard.update": {
       const i = fs.findIndex((x) => x.id === op.id);
       if (i >= 0) {
@@ -116,6 +125,12 @@ function applyOne(kit: BuilderKit, op: Op): void {
     case "flashcard.pin": {
       const f = fs.find((x) => x.id === op.id);
       if (f) f.meta = touched(f, { pinned: op.pinned });
+      return;
+    }
+    case "flashcard.restore": {
+      if (fs.some((x) => x.id === op.flashcard.id)) return;
+      const before = op.beforeId ? fs.findIndex((x) => x.id === op.beforeId) : -1;
+      fs.splice(before >= 0 ? before : fs.length, 0, structuredClone(op.flashcard));
       return;
     }
     case "brief.update":

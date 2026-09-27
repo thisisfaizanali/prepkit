@@ -44,10 +44,7 @@ export function FlashcardsSection() {
       message: "Flashcard deleted.",
       action: {
         label: "Undo",
-        run: () => {
-          if (card.id.startsWith("fu-")) enqueue({ op: "flashcard.add", flashcard: card });
-          enqueue({ op: "flashcard.move", id: card.id, beforeId, snapshot: card });
-        },
+        run: () => enqueue({ op: "flashcard.restore", flashcard: card, beforeId }),
       },
     });
   };

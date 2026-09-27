@@ -13,8 +13,8 @@ type UpdateOp = Extract<Op, { op: "question.update" | "flashcard.update" | "brie
 const isUpdate = (op: Op): op is UpdateOp => op.op === "question.update" || op.op === "flashcard.update" || op.op === "brief.update";
 function idOf(op: Op): string {
   if ("id" in op) return op.id;
-  if (op.op === "question.add") return op.question.id;
-  if (op.op === "flashcard.add") return op.flashcard.id;
+  if (op.op === "question.add" || op.op === "question.restore") return op.question.id;
+  if (op.op === "flashcard.add" || op.op === "flashcard.restore") return op.flashcard.id;
   return "brief";
 }
 

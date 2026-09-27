@@ -86,6 +86,28 @@ describe("applyOps: flashcards and brief", () => {
   });
 });
 
+describe("applyOps: restore (Undo of a delete)", () => {
+  it("question: puts the snapshot back exactly (meta untouched) before beforeId; a present id is a no-op", () => {
+    const orig = { ...snap("q2"), meta: { origin: "generated" as const, edited: false, pinned: true } };
+    const restore: Op = { op: "question.restore", question: orig, beforeId: "q3" };
+    const out = applyOps(applyOps(applyOps(kit, [{ op: "question.delete", id: "q2" }]), [restore]), [restore]);
+    expect(ids(out)).toEqual(ids(kit));
+    expect(out.questions[1]).toEqual(orig);
+  });
+
+  it("question: beforeId gone → the end of its category's run", () => {
+    const out = applyOps(kit, [{ op: "question.delete", id: "q2" }, { op: "question.delete", id: "q3" }, { op: "question.restore", question: snap("q2"), beforeId: "q3" }]);
+    expect(ids(out)).toEqual(["q1", "q2", "q4"]);
+  });
+
+  it("flashcard: exact restore at its old position; a present id is a no-op", () => {
+    const f1 = structuredClone(kit.flashcards[0]);
+    const restore: Op = { op: "flashcard.restore", flashcard: f1, beforeId: kit.flashcards[1].id };
+    const out = applyOps(applyOps(applyOps(kit, [{ op: "flashcard.delete", id: f1.id }]), [restore]), [restore]);
+    expect(out.flashcards).toEqual(kit.flashcards);
+  });
+});
+
 describe("OpSchema", () => {
   it("rejects unknown ops, unknown patch fields and badly formed user ids", () => {
     expect(OpSchema.safeParse({ op: "question.explode", id: "q1" }).success).toBe(false);

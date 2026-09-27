@@ -49,11 +49,7 @@ export function QuestionsSection() {
       message: `Question deleted.${warning}`,
       action: {
         label: "Undo",
-        run: () => {
-          // Generated ids can't be re-added; a move of a missing id re-inserts its snapshot at the old position.
-          if (q.id.startsWith("qu-")) enqueue({ op: "question.add", question: q });
-          enqueue({ op: "question.move", id: q.id, category: q.category, beforeId, snapshot: q });
-        },
+        run: () => enqueue({ op: "question.restore", question: q, beforeId }),
       },
     });
   };
